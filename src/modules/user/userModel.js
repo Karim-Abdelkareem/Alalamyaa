@@ -60,6 +60,24 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    totalSpent: {
+      type: Number,
+      default: 0,
+    },
+    wishlist: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Product",
+      },
+    ],
+    ordersCount: {
+      type: Number,
+      default: 0,
+    },
+    reviewsCount: {
+      type: Number,
+      default: 0,
+    },
   },
   { timestamps: true }
 );
