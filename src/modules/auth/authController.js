@@ -3,7 +3,7 @@ import jwt from "jsonwebtoken";
 import User from "../user/userModel.js";
 
 export const register = asyncHandler(async (req, res, next) => {
-  const { firstName, lastName, email, password } = req.body;
+  const { firstName, lastName, email, password, phoneNumber } = req.body;
   const userExists = await User.findOne({ email });
   if (userExists) {
     return res.status(400).json({ message: "User already exists" });
@@ -11,6 +11,7 @@ export const register = asyncHandler(async (req, res, next) => {
   const user = new User({
     firstName,
     lastName,
+    phoneNumber,
     email,
     password,
   });
@@ -39,6 +40,7 @@ export const login = asyncHandler(async (req, res, next) => {
       firstName: user.firstName,
       lastName: user.lastName,
       email: user.email,
+      phoneNumer: user.phoneNumber,
       role: user.role,
     },
     process.env.JWT_SECRET,
