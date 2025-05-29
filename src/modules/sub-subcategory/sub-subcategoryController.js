@@ -29,7 +29,7 @@ export const getSubSubcategory = asyncHandler(async (req, res, next) => {
 
 export const createSubSubcategory = asyncHandler(async (req, res, next) => {
   const { name, description } = req.body;
-  const subCategory = await Subcategory.findById(req.body.subCategory);
+  const subCategory = await Subcategory.findById(req.body.subcategory);
   const category = await Category.findById(req.body.category);
   if (!subCategory) {
     return next(new AppError("Subcategory not found", 404));
@@ -47,9 +47,10 @@ export const createSubSubcategory = asyncHandler(async (req, res, next) => {
   const subSubcategory = new SubSubcategory({
     name,
     description,
-    subCategory: req.body.subCategory,
+    subcategory: req.body.subcategory,
     category: req.body.category,
   });
+
   await subSubcategory.save();
 
   subCategory.subSubcategories.push(subSubcategory._id);

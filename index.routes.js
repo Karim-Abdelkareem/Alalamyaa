@@ -4,7 +4,9 @@ import authRouter from "./src/modules/auth/authRouter.js";
 import brandRouter from "./src/modules/brand/brandRouter.js";
 import userRouter from "./src/modules/user/userRouter.js";
 import categoryRouter from "./src/modules/category/categoryRouter.js";
-import subcategoryRoute from "./src/modules/subcategory/subcategoryRouter.js";
+import subcategoryRouter from "./src/modules/subcategory/subcategoryRouter.js";
+import productRouter from "./src/modules/product/productRouter.js";
+import subsubcategoryRouter from "./src/modules/sub-subcategory/sub-subcategoryRouter.js";
 
 export const init = (app) => {
   app.get("/", (req, res) => {
@@ -23,7 +25,9 @@ export const init = (app) => {
   app.use("/api/user", userRouter);
   app.use("/api/brand", brandRouter);
   app.use("/api/categories", categoryRouter);
-  app.use("/api/subcategory", subcategoryRoute);
+  app.use("/api/subcategory", subcategoryRouter);
+  app.use("/api/subsubcategory", subsubcategoryRouter);
+  app.use("/api/product", productRouter);
 
   app.all(/(.*)/, (req, res, next) => {
     next(new AppError(`Can't find ${req.originalUrl} on this server`, 404));
