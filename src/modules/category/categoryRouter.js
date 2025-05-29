@@ -1,40 +1,30 @@
 import express from 'express';
-import Category from "./categoryModel.js";
-import {
-    getAllCategories,
-    getCategoryBySlug,
-    createCategory,
-    updateCategory,
-    deleteCategory,
-    getCategoryById,
-    updateCategoryOrder,
-    toggleCategoryStatus
-} from './categoryController.js';
+import * as categoryController from './categoryController.js';
+import { protect, restrictTo } from "../../middleware/authorization.js";
 
 const router = express.Router();
 
-// Get all categories
-router.get('/', getAllCategories);
+router
+  .route("/")
+  .get(protect, categoryController.getAllCategories)
+  .post(protect, restrictTo("admin"), categoryController.createCategory);
 
-// Get category by slug
-router.get('/slug/:slug', getCategoryBySlug);
+router
+  .route("/slug/:slug")
+  .get(protect, categoryController.getCategoryBySlug);
 
-// Get category by ID
-router.get('/:id', getCategoryById);
+router
+  .route("/:id")
+  .get(protect, categoryController.getCategoryById)
+  .patch(protect, restrictTo("admin"), categoryController.updateCategory)
+  .delete(protect, restrictTo("admin"), categoryController.deleteCategory);
 
-// Create new category
-router.post('/', createCategory);
+router
+  .route("/order")
+  .patch(protect, restrictTo("admin"), categoryController.updateCategoryOrder);
 
-// Update category
-router.put('/:id', updateCategory);
-
-// Delete category
-router.delete('/:id', deleteCategory);
-
-// Update categories order
-router.patch('/order', updateCategoryOrder);
-
-// Toggle category status
-router.patch('/:id/toggle-status', toggleCategoryStatus);
+router
+  .route("/:id/toggle-status")
+  .patch(protect, restrictTo("admin"), categoryController.toggleCategoryStatus);
 
 export default router;
