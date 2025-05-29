@@ -29,16 +29,16 @@ export const getSubSubcategory = asyncHandler(async (req, res, next) => {
 
 export const createSubSubcategory = asyncHandler(async (req, res, next) => {
   const { name, description } = req.body;
-  const subCategory = await Subcategory.findById(req.body.subCategory);
+  const subcategory = await Subcategory.findById(req.body.subcategory);
   const category = await Category.findById(req.body.category);
-  if (!subCategory) {
+  if (!subcategory) {
     return next(new AppError("Subcategory not found", 404));
   }
   if (!category) {
     return next(new AppError("Category not found", 404));
   }
 
-  if (String(subCategory.category) !== String(category._id)) {
+  if (String(subcategory.category) !== String(category._id)) {
     return next(
       new AppError("Subcategory does not belong to the specified category", 400)
     );
@@ -47,13 +47,16 @@ export const createSubSubcategory = asyncHandler(async (req, res, next) => {
   const subSubcategory = new SubSubcategory({
     name,
     description,
-    subCategory: req.body.subCategory,
+    subcategory: req.body.subcategory,
     category: req.body.category,
   });
   await subSubcategory.save();
 
-  subCategory.subSubcategories.push(subSubcategory._id);
-  await subCategory.save();
+  // Update the subcategory's subSubcategories array if it exists
+  if (subcategory.subSubcategories) {
+    subcategory.subSubcategories.push(subSubcategory._id);
+    await subcategory.save();
+  }
 
   res.status(201).json({
     status: "success",
