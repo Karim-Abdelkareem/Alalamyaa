@@ -50,6 +50,7 @@ export const createSubSubcategory = asyncHandler(async (req, res, next) => {
     subcategory: req.body.subcategory,
     category: req.body.category,
   });
+
   await subSubcategory.save();
 
   // Update the subcategory's subSubcategories array if it exists

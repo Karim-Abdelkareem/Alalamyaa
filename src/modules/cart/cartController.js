@@ -1,25 +1,13 @@
 import asyncHandler from "express-async-handler";
 import { AppError } from "../../utils/appError.js";
 import Cart from "./cartModel.js";
+import Product from "../product/productModel.js";
 
-
-// Helper function to check authentication
-const checkAuth = (req) => {
-  if (!req.user || !req.user._id) {
-    throw new AppError("User not authenticated", 401);
-  }
-  return req.user._id;
-};
-
-export const getCart = asyncHandler(async (req, res) => {
-  const userId = checkAuth(req);
-  
-  const cart = await Cart.findOne({ user: userId })
-    .populate({
-      path: 'items.product',
-      select: 'name description price images stock'
-    })
-    .exec();
+export const getCart = asyncHandler(async (req, res, next) => {
+  let cart = await Cart.findOne({ user: req.user._id }).populate({
+    path: "items.product",
+    select: "name price images stock",
+  });
 
   if (!cart) {
     // If no cart exists, create an empty one
@@ -81,13 +69,24 @@ export const addToCart = asyncHandler(async (req, res) => {
     cart = new Cart({ user: userId, items: [] });
   }
 
-  // Add item to cart
-  await cart.addItem(productId, quantity, product.price);
-  
-  // Populate product details
-  await cart.populate({
-    path: 'items.product',
-    select: 'name description price images stock'
+  const existingItem = cart.items.find(
+    (item) => item.product.toString() === productId
+  );
+
+  if (existingItem) {
+    existingItem.quantity += quantity;
+  } else {
+    cart.items.push({
+      product: productId,
+      quantity,
+      price: product.price,
+    });
+  }
+
+  await cart.save();
+  cart = await cart.populate({
+    path: "items.product",
+    select: "name price images stock",
   });
 
   const totalPriceAfterDiscount = cart.totalPrice - (cart.totalPrice * cart.discount / 100);
@@ -112,15 +111,12 @@ export const removeFromCart = asyncHandler(async (req, res) => {
     throw new AppError("Cart not found", 404);
   }
 
-  await cart.removeItem(productId);
-  await cart.populate({
-    path: 'items.product',
-    select: 'name description price images stock'
-  });
+  cart.items = cart.items.filter(
+    (item) => item.product.toString() !== req.params.productId
+  );
+  await cart.save();
 
-  const totalPriceAfterDiscount = cart.totalPrice - (cart.totalPrice * cart.discount / 100);
-
-  res.json({
+  res.status(200).json({
     status: "success",
     data: {
       items: cart.items,
@@ -154,11 +150,12 @@ export const updateCartItemQuantity = asyncHandler(async (req, res) => {
     throw new AppError("Cart not found", 404);
   }
 
-  await cart.updateItemQuantity(productId, quantity);
-  await cart.populate({
-    path: 'items.product',
-    select: 'name description price images stock'
-  });
+  const item = cart.items.find(
+    (item) => item.product.toString() === req.params.productId
+  );
+  if (!item) {
+    return next(new AppError("Item not found in cart", 404));
+  }
 
   const totalPriceAfterDiscount = cart.totalPrice - (cart.totalPrice * cart.discount / 100);
 

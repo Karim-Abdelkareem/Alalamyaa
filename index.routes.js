@@ -6,7 +6,8 @@ import brandRouter from "./src/modules/brand/brandRouter.js";
 import userRouter from "./src/modules/user/userRouter.js";
 import categoryRouter from "./src/modules/category/categoryRouter.js";
 import subcategoryRouter from "./src/modules/subcategory/subcategoryRouter.js";
-import subSubcategoryRoute from "./src/modules/sub-subcategory/sub-subcategoryRouter.js";
+import productRouter from "./src/modules/product/productRouter.js";
+import subsubcategoryRouter from "./src/modules/sub-subcategory/sub-subcategoryRouter.js";
 import cartRouter from "./src/modules/cart/cartRouter.js";
 import orderRouter from "./src/modules/order/orderRouter.js";
 
@@ -31,7 +32,8 @@ const init = (app) => {
   app.use("/api/brand", brandRouter);
   app.use("/api/categories", categoryRouter);
   app.use("/api/subcategory", subcategoryRouter);
-  app.use("/api/sub-subcategory", subSubcategoryRoute);
+  app.use("/api/subsubcategory", subsubcategoryRouter);
+  app.use("/api/product", productRouter);
   app.use("/api/cart", cartRouter);
   app.use("/api/orders", orderRouter);
   app.all(/(.*)/, (req, res, next) => {

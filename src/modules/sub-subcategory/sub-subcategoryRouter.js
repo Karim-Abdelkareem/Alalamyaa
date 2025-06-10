@@ -15,11 +15,7 @@ router
 
 router
   .route("/:id")
-  .get(
-    protect,
-    restrictTo("admin"),
-    subSubcategoryController.getSubSubcategory
-  )
+  .get(protect, restrictTo("admin"), subSubcategoryController.getSubSubcategory)
   .patch(
     protect,
     restrictTo("admin"),
