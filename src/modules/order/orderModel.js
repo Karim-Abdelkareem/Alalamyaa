@@ -17,7 +17,7 @@ const orderSchema = new mongoose.Schema(
         quantity: {
           type: Number,
           required: true,
-          min: 1,
+          min: [1, "Quantity must be at least 1"],
         },
         price: {
           type: Number,
@@ -25,55 +25,68 @@ const orderSchema = new mongoose.Schema(
         },
       },
     ],
-
-    totalOrderPrice: {
-      type: Number,
-      required: true,
-    },
     shippingAddress: {
       address: { type: String, required: true },
       city: { type: String, required: true },
-      postalCode: { type: String},
+      postalCode: { type: String, required: true },
       country: { type: String, required: true },
-    },
-    status: {
-      type: String,
-      enum: ["pending", "processing", "shipped", "delivered", "cancelled"],
-      default: "pending",
     },
     paymentMethod: {
       type: String,
-      required: true,
       enum: ["cash", "credit_card"],
-      default: "cash",
+      required: true,
     },
     paymentStatus: {
       type: String,
       enum: ["pending", "paid", "failed"],
       default: "pending",
     },
-    isActive: {
+    isPaid: {
       type: Boolean,
-      default: true,
+      default: false,
     },
-    isPaid:{
-      type:Boolean,
-      default:false
-  },
-  isDeliverd:{
-      type:Boolean,
-      default:false
-  },
-  deliverdAt:Date
+    paidAt: Date,
+    // Fixed: Corrected spelling and grouped delivery fields together
+    isDelivered: {
+      type: Boolean,
+      default: false,
+    },
+    deliveredAt: {
+      type: Date,
+    },
+    status: {
+      type: String,
+      enum: ["pending", "processing", "shipped", "delivered", "cancelled"],
+      default: "pending",
+    },
+    totalOrderPrice: {
+      type: Number,
+      required: true,
+    },
+    taxPrice: {
+      type: Number,
+      default: 0,
+    },
+    shippingPrice: {
+      type: Number,
+      default: 0,
+    },
   },
   {
     timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
   }
 );
 
-orderSchema.index({ user: 1, createdAt: -1 });
-orderSchema.index({ status: 1 });
+// Pre-save middleware to update delivery status based on order status
+orderSchema.pre("save", function (next) {
+  if (this.status === "delivered" && !this.isDelivered) {
+    this.isDelivered = true;
+    this.deliveredAt = new Date();
+  }
+  next();
+});
 
 const Order = mongoose.model("Order", orderSchema);
-
 export default Order;

@@ -15,17 +15,19 @@ import { protect, restrictTo } from "../../middleware/authorization.js";
 const router = express.Router();
 
 // All routes require authentication
-// router.use(protect);
+router.use(protect);
+
+// IMPORTANT: Specific routes must come BEFORE parameterized routes
+// Admin route for getting all orders - MUST be before /:id routes
+router.route("/all")
+  .get(restrictTo("admin"), getAllOrders);
 
 // User routes
 router.route("/")
-  .get(protect, getUserOrders)
-  .post(protect, createOrder);
+  .get(getUserOrders)
+  .post(createOrder);
 
-router.route("/:id")
-  .get(getOrderById)
-  .delete(restrictTo("admin"), deleteOrder);
-
+// Specific action routes - these must come before the generic /:id route
 router.route("/:id/pay")
   .patch(updateOrderToPaid);
 
@@ -38,8 +40,9 @@ router.route("/:id/status")
 router.route("/:id/cancel")
   .patch(cancelOrder);
 
-// Admin routes
-router.route("/all")
-  .get(restrictTo("admin"), getAllOrders);
+// Generic /:id route - MUST come last among parameterized routes
+router.route("/:id")
+  .get(getOrderById)
+  .delete(restrictTo("admin"), deleteOrder);
 
 export default router;

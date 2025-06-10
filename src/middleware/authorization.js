@@ -6,19 +6,25 @@ import { promisify } from "util";
 
 export const protect = asyncHandler(async (req, res, next) => {
   let { authorization } = req.headers;
-  if (!authorization) {
+
+  if (!authorization || !authorization.startsWith("Bearer ")) {
     return next(
       new AppError("You are not logged in! Please log in to get access.", 401)
     );
   }
+
+  const token = authorization.split(" ")[1];
+
   const decodedToken = await promisify(jwt.verify)(
-    authorization,
+    token,
     process.env.JWT_SECRET
   );
+
   const user = await User.findById(decodedToken.id);
   if (!user) {
     return next(new AppError("User does not exist!", 404));
   }
+
   req.user = user;
   next();
 });

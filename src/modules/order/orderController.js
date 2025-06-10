@@ -2,6 +2,8 @@ import asyncHandler from "express-async-handler";
 import Order from "./orderModel.js";
 import { AppError } from "../../utils/appError.js";
 
+const validStatuses = ["pending", "processing", "shipped", "delivered", "cancelled"];
+
 export const createOrder = asyncHandler(async (req, res, next) => {
   const {
     cartItems,
@@ -21,6 +23,10 @@ export const createOrder = asyncHandler(async (req, res, next) => {
     paymentMethod,
     totalOrderPrice,
   });
+
+  // Populate for consistent response
+  await order.populate("user", "firstName lastName email");
+  await order.populate("cartItems.product", "name price");
 
   res.status(201).json({
     status: "success",
@@ -95,8 +101,8 @@ export const updateOrderToDelivered = asyncHandler(async (req, res, next) => {
     return next(new AppError("Order not found", 404));
   }
 
-  order.isDeliverd = true;
-  order.deliverdAt = Date.now();
+  order.isDelivered = true;
+  order.deliveredAt = Date.now();
   order.status = "delivered";
   const updatedOrder = await order.save();
 
@@ -121,51 +127,92 @@ export const getAllOrders = asyncHandler(async (req, res) => {
 
 export const updateOrderStatus = asyncHandler(async (req, res, next) => {
   const { status } = req.body;
-  const order = await Order.findById(req.params.id);
+  
+  const validStatuses = ["pending", "processing", "shipped", "delivered", "cancelled"];
+  if (!validStatuses.includes(status)) {
+    return next(new AppError("Invalid order status", 400));
+  }
 
+  const order = await Order.findById(req.params.id)
+    .populate("user", "firstName lastName email")
+    .populate("cartItems.product", "name price");
+  
   if (!order) {
     return next(new AppError("Order not found", 404));
   }
 
+  // Update status
   order.status = status;
-  const updatedOrder = await order.save();
+  
+  // Fixed: Use correct field names
+  if (status === "delivered") {
+    order.isDelivered = true;
+    order.deliveredAt = new Date();
+  }
+
+  await order.save();
 
   res.status(200).json({
     status: "success",
     data: {
-      order: updatedOrder,
+      order,
+    },
+  });
+});
+
+// Add method to mark order as paid
+export const markOrderAsPaid = asyncHandler(async (req, res, next) => {
+  const order = await Order.findById(req.params.id);
+  
+  if (!order) {
+    return next(new AppError("Order not found", 404));
+  }
+
+  order.isPaid = true;
+  order.paidAt = new Date();
+  order.paymentStatus = "paid";
+  
+  await order.save();
+
+  res.status(200).json({
+    status: "success",
+    data: {
+      order,
     },
   });
 });
 
 export const cancelOrder = asyncHandler(async (req, res, next) => {
-  const order = await Order.findById(req.params.id);
-
+  const order = await Order.findById(req.params.id)
+    .populate("user", "firstName lastName email")
+    .populate("cartItems.product", "name price");
+  
   if (!order) {
     return next(new AppError("Order not found", 404));
   }
 
-
-  if (
-    order.user.toString() !== req.user._id.toString() &&
-    req.user.role !== "admin"
-  ) {
-    return next(new AppError("Not authorized to cancel this order", 403));
+  const orderUserId = order.user._id ? order.user._id.toString() : order.user.toString();
+  
+  if (orderUserId !== req.user._id.toString()) {
+    return next(new AppError("You can only cancel your own orders", 403));
   }
 
-  if (!["pending", "processing"].includes(order.status)) {
-    return next(
-      new AppError("Cannot cancel order that is already shipped or delivered", 400)
-    );
+  if (order.status === "cancelled") {
+    return next(new AppError("Order is already cancelled", 400));
+  }
+
+  if (order.status === "delivered") {
+    return next(new AppError("Cannot cancel delivered order", 400));
   }
 
   order.status = "cancelled";
-  const updatedOrder = await order.save();
+  await order.save();
 
   res.status(200).json({
     status: "success",
+    message: "Order cancelled successfully",
     data: {
-      order: updatedOrder,
+      order,
     },
   });
 });
