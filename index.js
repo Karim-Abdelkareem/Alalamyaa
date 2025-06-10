@@ -6,7 +6,7 @@ import cookieParser from "cookie-parser";
 
 // Import custom modules and middleware
 import connectDB from "./src/config/db.js";
-import { init } from "./index.routes.js";
+import init from "./index.routes.js";
 
 // Initialize Express application
 const app = express();

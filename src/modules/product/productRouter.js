@@ -16,7 +16,7 @@ router.route("/").post(
   restrictTo("admin"),
   upload.fields([
     { name: "coverImage", maxCount: 1 },
-    { name: "images", maxCount: 15 },
+    { name: "variantImages", maxCount: 30 },
   ]),
   productController.createProduct
 );
@@ -28,7 +28,7 @@ router
     restrictTo("admin"),
     upload.fields([
       { name: "coverImage", maxCount: 1 },
-      { name: "images", maxCount: 15 },
+      { name: "variantImages", maxCount: 30 },
     ]),
     productController.updateProduct
   )
@@ -39,14 +39,14 @@ router.patch(
   "/:id/stock",
   protect,
   restrictTo("admin"),
-  productController.updateStock
+  productController.updateVariantStock // Changed from updateStock
 );
 
 router.patch(
   "/:id/price",
   protect,
   restrictTo("admin"),
-  productController.updatePrice
+  productController.updateVariantPrice // Changed from updatePrice
 );
 
 export default router;
