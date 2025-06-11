@@ -43,50 +43,68 @@ export const getCart = asyncHandler(async (req, res, next) => {
   });
 });
 
-export const addToCart = asyncHandler(async (req, res) => {
-  const userId = checkAuth(req);
-  const { productId, quantity } = req.body;
+export const addToCart = asyncHandler(async (req, res, next) => {
+  const { items } = req.body;
 
   // Validate input
-  if (!productId || !quantity) {
-    throw new AppError("Product ID and quantity are required", 400);
-  }
-
-  // Check if product exists
-  const product = await Product.findById(productId);
-  if (!product) {
-    throw new AppError("Product not found", 404);
-  }
-
-  // Check stock
-  if (product.stock < quantity) {
-    throw new AppError("Not enough stock available", 400);
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    return next(new AppError("Items array is required", 400));
   }
 
   // Find or create cart
-  let cart = await Cart.findOne({ user: userId });
+  let cart = await Cart.findOne({ user: req.user._id });
   if (!cart) {
-    cart = new Cart({ user: userId, items: [] });
-  }
-
-  const existingItem = cart.items.find(
-    (item) => item.product.toString() === productId
-  );
-
-  if (existingItem) {
-    existingItem.quantity += quantity;
-  } else {
-    cart.items.push({
-      product: productId,
-      quantity,
-      price: product.price,
+    cart = new Cart({ 
+      user: req.user._id, 
+      items: [],
+      totalPrice: 0,
+      discount: 0
     });
   }
 
+  // Process each item
+  for (const item of items) {
+    const { product, quantity, price } = item;
+
+    // Validate item data
+    if (!product || !quantity || !price) {
+      return next(new AppError("Product, quantity, and price are required for each item", 400));
+    }
+
+    // Check if product exists
+    const productExists = await Product.findById(product);
+    if (!productExists) {
+      return next(new AppError(`Product with ID ${product} not found`, 404));
+    }
+
+    // Check stock
+    if (productExists.stock < quantity) {
+      return next(new AppError(`Not enough stock available for product ${product}`, 400));
+    }
+
+    // Update or add item
+    const existingItem = cart.items.find(
+      (cartItem) => cartItem.product.toString() === product
+    );
+
+    if (existingItem) {
+      existingItem.quantity += quantity;
+      existingItem.price = price; // Update price to latest
+    } else {
+      cart.items.push({
+        product,
+        quantity,
+        price
+      });
+    }
+  }
+
   await cart.save();
+  
+  // Populate product details
   cart = await cart.populate({
     path: "items.product",
-    select: "name price images stock",
+    select: "name price images stock"
   });
 
   const totalPriceAfterDiscount = cart.totalPrice - (cart.totalPrice * cart.discount / 100);
@@ -188,4 +206,57 @@ export const clearCart = asyncHandler(async (req, res) => {
       totalPriceAfterDiscount: 0
     }
   });
+});
+
+export const getAllCarts = asyncHandler(async (req, res, next) => {
+  // Check if user is admin
+  if (req.user.role !== 'admin') {
+    return next(new AppError('Not authorized to access this resource', 403));
+  }
+
+  const carts = await Cart.find()
+    .populate('user', 'firstName lastName email phoneNumber')
+    .populate('items.product', 'name price images stock')
+    .sort({ createdAt: -1 });
+
+  // Calculate totals for each cart
+  const cartsWithTotals = carts.map(cart => {
+    const cartObj = cart.toObject();
+    cartObj.totalPriceAfterDiscount = cart.totalPrice - (cart.totalPrice * cart.discount / 100);
+    cartObj.totalItems = cart.items.reduce((sum, item) => sum + item.quantity, 0);
+    return cartObj;
+  });
+
+  res.status(200).json({
+    status: 'success',
+    results: carts.length,
+    data: { 
+      carts: cartsWithTotals,
+      summary: {
+        totalCarts: carts.length,
+        totalActiveCarts: carts.filter(cart => cart.items.length > 0).length,
+        totalItems: carts.reduce((sum, cart) => sum + cart.items.reduce((itemSum, item) => itemSum + item.quantity, 0), 0)
+      }
+    }
+  });
+});
+
+// Delete a cart by ID (admin only)
+export const deleteCartById = asyncHandler(async (req, res, next) => {
+  const { cartId } = req.params;
+  const cart = await Cart.findByIdAndDelete(cartId);
+  if (!cart) {
+    return next(new AppError('Cart not found', 404));
+  }
+  res.status(204).json({ status: 'success', data: null });
+});
+
+// Update a cart by ID (admin only)
+export const updateCartById = asyncHandler(async (req, res, next) => {
+  const { cartId } = req.params;
+  const updatedCart = await Cart.findByIdAndUpdate(cartId, req.body, { new: true });
+  if (!updatedCart) {
+    return next(new AppError('Cart not found', 404));
+  }
+  res.status(200).json({ status: 'success', data: updatedCart });
 });
