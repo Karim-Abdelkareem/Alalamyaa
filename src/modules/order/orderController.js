@@ -1,233 +1,277 @@
 import asyncHandler from "express-async-handler";
 import Order from "./orderModel.js";
+import Cart from "../../modules/cart/cartModel.js";
+import  productModel  from '../../modules/product/productModel.js';
 import { AppError } from "../../utils/appError.js";
-
 const validStatuses = ["pending", "processing", "shipped", "delivered", "cancelled"];
+const validPaymentStatuses = ["pending", "paid", "failed", "refunded"];
+
+const getUserByOrder = (order) => {
+  if (!order || !order.user) return null;
+  return {
+    id: order.user._id,
+    firstName: order.user.firstName,
+    lastName: order.user.lastName,
+    email: order.user.email,
+    phoneNumber: order.user.phoneNumber,
+    profilePicture: order.user.profilePicture
+  };
+};
 
 export const createOrder = asyncHandler(async (req, res, next) => {
-  const {
-    cartItems,
-    shippingAddress,
-    paymentMethod,
-    totalOrderPrice,
-  } = req.body;
+  const { items, shippingAddress, paymentMethod } = req.body;
 
-  if (!cartItems || cartItems.length === 0) {
+  if (!items || items.length === 0) {
     return next(new AppError("No order items", 400));
   }
 
+  // Calculate total price from items
+  const totalOrderPrice = items.reduce((total, item) => {
+    return total + (item.price * item.quantity);
+  }, 0);
+
   const order = await Order.create({
     user: req.user._id,
-    cartItems,
+    items,
     shippingAddress,
     paymentMethod,
     totalOrderPrice,
   });
 
-  // Populate for consistent response
-  await order.populate("user", "firstName lastName email");
-  await order.populate("cartItems.product", "name price");
+  await order.populate("user", "firstName lastName email phoneNumber profilePicture");
+  await order.populate("items.product", "name price image description brand category");
 
-  res.status(201).json({
-    status: "success",
-    data: {
-      order,
-    },
-  });
+  const orderObject = order.toObject();
+  orderObject.customer = getUserByOrder(order);
+  delete orderObject.user;
+
+  res.status(201).json({ status: "success", data: { order: orderObject } });
 });
 
 export const getUserOrders = asyncHandler(async (req, res) => {
-  const orders = await Order.find({ user: req.user._id });
-  res.status(200).json({
-    status: "success",
-    results: orders.length,
-    data: {
-      orders,
-    },
+  const orders = await Order.find({ user: req.user._id })
+    .populate("user", "firstName lastName email phoneNumber profilePicture")
+    .populate("cartItems.product", "name price image description brand category")
+    .sort({ createdAt: -1 });
+
+  const ordersWithCustomers = orders.map(order => {
+    const obj = order.toObject();
+    obj.customer = getUserByOrder(order);
+    delete obj.user;
+    return obj;
   });
+
+  res.status(200).json({ status: "success", results: orders.length, data: { orders: ordersWithCustomers } });
 });
 
 export const getOrderById = asyncHandler(async (req, res, next) => {
-  const order = await Order.findById(req.params.id).populate(
-    "user",
-    "name email"
-  );
+  const order = await Order.findById(req.params.id)
+    .populate("user", "firstName lastName email phoneNumber profilePicture")
+    .populate("cartItems.product", "name price image description brand category");
 
-  if (!order) {
-    return next(new AppError("Order not found", 404));
-  }
+  if (!order) return next(new AppError("Order not found", 404));
 
-  // Check if the order belongs to the logged-in user or if user is admin
-  if (
-    order.user._id.toString() !== req.user._id.toString() &&
-    req.user.role !== "admin"
-  ) {
+  if (order.user._id.toString() !== req.user._id.toString() && req.user.role !== "admin") {
     return next(new AppError("Not authorized to access this order", 403));
   }
 
-  res.status(200).json({
-    status: "success",
-    data: {
-      order,
-    },
-  });
+  const orderObject = order.toObject();
+  orderObject.customer = getUserByOrder(order);
+  delete orderObject.user;
+
+  res.status(200).json({ status: "success", data: { order: orderObject } });
 });
 
 export const updateOrderToPaid = asyncHandler(async (req, res, next) => {
-  const order = await Order.findById(req.params.id);
+  const order = await Order.findById(req.params.id)
+    .populate("user", "firstName lastName email phoneNumber profilePicture")
+    .populate("cartItems.product", "name price image description brand category");
 
-  if (!order) {
-    return next(new AppError("Order not found", 404));
-  }
+  if (!order) return next(new AppError("Order not found", 404));
 
   order.isPaid = true;
   order.paymentStatus = "paid";
   order.status = "processing";
-  const updatedOrder = await order.save();
+  await order.save();
 
-  res.status(200).json({
-    status: "success",
-    data: {
-      order: updatedOrder,
-    },
-  });
+  const orderObject = order.toObject();
+  orderObject.customer = getUserByOrder(order);
+  delete orderObject.user;
+
+  res.status(200).json({ status: "success", data: { order: orderObject } });
 });
 
-
 export const updateOrderToDelivered = asyncHandler(async (req, res, next) => {
-  const order = await Order.findById(req.params.id);
+  const order = await Order.findById(req.params.id)
+    .populate("user", "firstName lastName email phoneNumber profilePicture")
+    .populate("cartItems.product", "name price image description brand category");
 
-  if (!order) {
-    return next(new AppError("Order not found", 404));
-  }
+  if (!order) return next(new AppError("Order not found", 404));
 
   order.isDelivered = true;
   order.deliveredAt = Date.now();
   order.status = "delivered";
-  const updatedOrder = await order.save();
+  await order.save();
 
-  res.status(200).json({
-    status: "success",
-    data: {
-      order: updatedOrder,
-    },
-  });
+  const orderObject = order.toObject();
+  orderObject.customer = getUserByOrder(order);
+  delete orderObject.user;
+
+  res.status(200).json({ status: "success", data: { order: orderObject } });
 });
 
 export const getAllOrders = asyncHandler(async (req, res) => {
-  const orders = await Order.find({}).populate("user", "id name");
+  const orders = await Order.find()
+    .populate("user", "firstName lastName email phoneNumber profilePicture")
+    .populate("items.product", "name price");
   res.status(200).json({
     status: "success",
-    results: orders.length,
     data: {
       orders,
     },
   });
 });
 
-export const updateOrderStatus = asyncHandler(async (req, res, next) => {
+export const updateOrderStatus = asyncHandler(async (req, res) => {
   const { status } = req.body;
-  
-  const validStatuses = ["pending", "processing", "shipped", "delivered", "cancelled"];
-  if (!validStatuses.includes(status)) {
-    return next(new AppError("Invalid order status", 400));
-  }
+  const order = await Order.findById(req.params.id);
 
-  const order = await Order.findById(req.params.id)
-    .populate("user", "firstName lastName email")
-    .populate("cartItems.product", "name price");
-  
   if (!order) {
-    return next(new AppError("Order not found", 404));
+    res.status(404);
+    throw new Error("Order not found");
   }
 
-  // Update status
   order.status = status;
-  
-  // Fixed: Use correct field names
-  if (status === "delivered") {
-    order.isDelivered = true;
-    order.deliveredAt = new Date();
-  }
+  const updatedOrder = await order.save();
 
-  await order.save();
-
-  res.status(200).json({
+  res.json({
     status: "success",
     data: {
-      order,
+      order: updatedOrder,
     },
   });
 });
 
-// Add method to mark order as paid
 export const markOrderAsPaid = asyncHandler(async (req, res, next) => {
-  const order = await Order.findById(req.params.id);
-  
-  if (!order) {
-    return next(new AppError("Order not found", 404));
-  }
+  const order = await Order.findById(req.params.id)
+    .populate("user", "firstName lastName email phoneNumber profilePicture")
+    .populate("cartItems.product", "name price image description brand category");
+
+  if (!order) return next(new AppError("Order not found", 404));
 
   order.isPaid = true;
   order.paidAt = new Date();
   order.paymentStatus = "paid";
-  
   await order.save();
 
-  res.status(200).json({
-    status: "success",
-    data: {
-      order,
-    },
-  });
+  const orderObject = order.toObject();
+  orderObject.customer = getUserByOrder(order);
+  delete orderObject.user;
+
+  res.status(200).json({ status: "success", data: { order: orderObject } });
 });
 
-export const cancelOrder = asyncHandler(async (req, res, next) => {
-  const order = await Order.findById(req.params.id)
-    .populate("user", "firstName lastName email")
-    .populate("cartItems.product", "name price");
-  
+export const cancelOrder = asyncHandler(async (req, res) => {
+  const order = await Order.findById(req.params.id);
+
   if (!order) {
-    return next(new AppError("Order not found", 404));
+    res.status(404);
+    throw new Error("Order not found");
   }
 
-  const orderUserId = order.user._id ? order.user._id.toString() : order.user.toString();
-  
-  if (orderUserId !== req.user._id.toString()) {
-    return next(new AppError("You can only cancel your own orders", 403));
+  if (order.user.toString() !== req.user._id.toString()) {
+    res.status(403);
+    throw new Error("Not authorized to cancel this order");
   }
 
-  if (order.status === "cancelled") {
-    return next(new AppError("Order is already cancelled", 400));
-  }
-
-  if (order.status === "delivered") {
-    return next(new AppError("Cannot cancel delivered order", 400));
+  if (order.status !== "pending") {
+    res.status(400);
+    throw new Error("Can only cancel pending orders");
   }
 
   order.status = "cancelled";
   await order.save();
 
-  res.status(200).json({
+  res.json({
     status: "success",
     message: "Order cancelled successfully",
-    data: {
-      order,
-    },
   });
 });
 
-export const deleteOrder = asyncHandler(async (req, res, next) => {
+export const deleteOrder = asyncHandler(async (req, res) => {
   const order = await Order.findById(req.params.id);
+
+  if (!order) {
+    res.status(404);
+    throw new Error("Order not found");
+  }
+
+  await order.deleteOne();
+  res.json({
+    status: "success",
+    message: "Order deleted successfully",
+  });
+});
+
+export const getOrdersByUserId = asyncHandler(async (req, res, next) => {
+  const userId = req.params.userId;
+
+  const orders = await Order.find({ user: userId })
+    .populate("user", "firstName lastName email phoneNumber profilePicture")
+    .populate("cartItems.product", "name price image description brand category")
+    .sort({ createdAt: -1 });
+
+  const ordersWithCustomers = orders.map(order => {
+    const obj = order.toObject();
+    obj.customer = getUserByOrder(order);
+    obj.totalItems = order.cartItems.reduce((total, item) => total + item.quantity, 0);
+    delete obj.user;
+    return obj;
+  });
+
+  res.status(200).json({
+    status: 'success',
+    results: orders.length,
+    data: {
+      orders: ordersWithCustomers,
+      summary: {
+        totalOrders: orders.length,
+        totalRevenue: orders.reduce((sum, order) => sum + order.totalOrderPrice, 0)
+      }
+    }
+  });
+});
+
+export const updatePaymentStatus = asyncHandler(async (req, res, next) => {
+  const { paymentStatus } = req.body;
+
+  if (!validPaymentStatuses.includes(paymentStatus)) {
+    return next(new AppError("Invalid payment status", 400));
+  }
+
+  const order = await Order.findById(req.params.id)
+    .populate("user", "name email")
+    .populate("items.product", "name price");
 
   if (!order) {
     return next(new AppError("Order not found", 404));
   }
 
-  await order.deleteOne();
+  order.paymentStatus = paymentStatus;
+  
+  // If payment is successful, update order status to processing
+  if (paymentStatus === "paid") {
+    order.status = "processing";
+    order.isPaid = true;
+    order.paidAt = Date.now();
+  }
 
-  res.status(204).json({
+  const updatedOrder = await order.save();
+
+  res.status(200).json({
     status: "success",
-    data: null,
+    data: {
+      order: updatedOrder,
+    },
   });
 });

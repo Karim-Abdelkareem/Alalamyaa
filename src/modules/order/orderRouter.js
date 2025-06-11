@@ -1,36 +1,32 @@
 import express from "express";
 import {
-  createOrder,
+  getAllOrders,
   getUserOrders,
   getOrderById,
-  updateOrderToPaid,
-  updateOrderToDelivered,
-  getAllOrders,
+  createOrder,
   updateOrderStatus,
   cancelOrder,
   deleteOrder,
+  updatePaymentStatus,
 } from "./orderController.js";
-import { protect, restrictTo } from "../../middleware/authorization.js";
+import { protect, admin } from "../../middleware/authorization.js";
 
 const router = express.Router();
 
-// All routes require authentication
-router.use(protect);
+
+router.use(protect); 
 
 // User routes
-router.route("/").get(getUserOrders).post(createOrder);
-
-router.route("/:id").get(getOrderById).delete(restrictTo("admin"), deleteOrder);
-
-router.route("/:id/pay").patch(updateOrderToPaid);
-
-router.route("/:id/deliver").patch(restrictTo("admin"), updateOrderToDelivered);
-
-router.route("/:id/status").patch(restrictTo("admin"), updateOrderStatus);
-
-router.route("/:id/cancel").patch(cancelOrder);
+router.route("/myorders").get(getUserOrders);
+router.route("/").post(createOrder);
+router.route("/:id").get(getOrderById);
+router.route("/:id/cancel").put(cancelOrder);
 
 // Admin routes
-router.route("/all").get(restrictTo("admin"), getAllOrders);
+router.use(admin); // All routes below require admin privileges
+router.route("/").get(getAllOrders);
+router.route("/:id/status").put(updateOrderStatus);
+router.route("/:id/payment").put(updatePaymentStatus);
+router.route("/:id").delete(deleteOrder);
 
 export default router;
