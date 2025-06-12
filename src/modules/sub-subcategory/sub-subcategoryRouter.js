@@ -6,7 +6,7 @@ const router = express.Router();
 
 router
   .route("/")
-  .get(protect, subSubcategoryController.getAllSubSubcategories)
+  .get(protect, subSubcategoryController.getSubSubcategories)
   .post(
     protect,
     restrictTo("admin"),
@@ -15,11 +15,7 @@ router
 
 router
   .route("/:id")
-  .get(
-    protect,
-    restrictTo("admin"),
-    subSubcategoryController.getSubSubcategoryById
-  )
+  .get(protect, restrictTo("admin"), subSubcategoryController.getSubSubcategory)
   .patch(
     protect,
     restrictTo("admin"),
