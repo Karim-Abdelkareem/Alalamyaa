@@ -3,6 +3,34 @@ import { AppError } from "../../utils/appError.js";
 import Cart from "./cartModel.js";
 import Product from "../product/productModel.js";
 
+// Helper function to get localized response based on Accept-Language header
+const getLocalizedResponse = (req, cart) => {
+  const lang = req.headers['accept-language']?.startsWith('ar') ? 'ar' : 'en';
+  const cartObj = cart.toObject();
+  
+  // Add localized display fields
+  if (cart.statusDisplay) {
+    cartObj.statusText = cart.statusDisplay[lang];
+  }
+  
+  // Add localized discount text
+  if (cart.discountText) {
+    cartObj.discountMessage = cart.discountText[lang];
+  }
+  
+  // Add localized notes if they exist
+  if (cart.notes && cart.notes[lang]) {
+    cartObj.notesText = cart.notes[lang];
+  }
+  
+  // Add localized discount description if it exists
+  if (cart.discountDescription && cart.discountDescription[lang]) {
+    cartObj.discountDescriptionText = cart.discountDescription[lang];
+  }
+  
+  return cartObj;
+};
+
 export const getCart = asyncHandler(async (req, res, next) => {
   let cart = await Cart.findOne({ user: req.user._id }).populate({
     path: "items.product",
@@ -12,7 +40,7 @@ export const getCart = asyncHandler(async (req, res, next) => {
   if (!cart) {
     // If no cart exists, create an empty one
     const newCart = new Cart({
-      user: userId,
+      user: req.user._id,
       items: [],
       totalPrice: 0,
       discount: 0
@@ -24,27 +52,32 @@ export const getCart = asyncHandler(async (req, res, next) => {
         items: [],
         totalPrice: 0,
         discount: 0,
-        totalPriceAfterDiscount: 0
+        totalPriceAfterDiscount: 0,
+        discountMessage: req.headers['accept-language']?.startsWith('ar') ? 
+          "لم يتم تطبيق أي خصم" : "No discount applied"
       }
     });
   }
 
-  // Calculate totalPriceAfterDiscount
-  const totalPriceAfterDiscount = cart.totalPrice - (cart.totalPrice * cart.discount / 100);
+  const localizedCart = getLocalizedResponse(req, cart);
 
   res.json({
     status: "success",
     data: {
-      items: cart.items,
-      totalPrice: cart.totalPrice,
-      discount: cart.discount,
-      totalPriceAfterDiscount
+      items: localizedCart.items,
+      totalPrice: localizedCart.totalPrice,
+      discount: localizedCart.discount,
+      totalPriceAfterDiscount: localizedCart.totalPriceAfterDiscount,
+      discountMessage: localizedCart.discountMessage,
+      statusText: localizedCart.statusText,
+      notesText: localizedCart.notesText,
+      discountDescriptionText: localizedCart.discountDescriptionText
     }
   });
 });
 
 export const addToCart = asyncHandler(async (req, res, next) => {
-  const { items } = req.body;
+  const { items, notes } = req.body;
 
   // Validate input
   if (!items || !Array.isArray(items) || items.length === 0) {
@@ -62,9 +95,14 @@ export const addToCart = asyncHandler(async (req, res, next) => {
     });
   }
 
+  // Add cart-level notes if provided
+  if (notes) {
+    cart.notes = notes;
+  }
+
   // Process each item
   for (const item of items) {
-    const { product, quantity, price } = item;
+    const { product, quantity, price, notes: itemNotes } = item;
 
     // Validate item data
     if (!product || !quantity || !price) {
@@ -82,118 +120,209 @@ export const addToCart = asyncHandler(async (req, res, next) => {
       return next(new AppError(`Not enough stock available for product ${product}`, 400));
     }
 
-    // Update or add item
-    const existingItem = cart.items.find(
-      (cartItem) => cartItem.product.toString() === product
-    );
-
-    if (existingItem) {
-      existingItem.quantity += quantity;
-      existingItem.price = price; // Update price to latest
-    } else {
-      cart.items.push({
-        product,
-        quantity,
-        price
-      });
-    }
+    // Update or add item using the model method
+    await cart.addItem(product, quantity, price, itemNotes);
   }
 
-  await cart.save();
-  
   // Populate product details
   cart = await cart.populate({
     path: "items.product",
     select: "name price images stock"
   });
 
-  const totalPriceAfterDiscount = cart.totalPrice - (cart.totalPrice * cart.discount / 100);
+  const localizedCart = getLocalizedResponse(req, cart);
 
   res.status(201).json({
     status: "success",
     data: {
-      items: cart.items,
-      totalPrice: cart.totalPrice,
-      discount: cart.discount,
-      totalPriceAfterDiscount
+      items: localizedCart.items,
+      totalPrice: localizedCart.totalPrice,
+      discount: localizedCart.discount,
+      totalPriceAfterDiscount: localizedCart.totalPriceAfterDiscount,
+      discountMessage: localizedCart.discountMessage,
+      statusText: localizedCart.statusText,
+      notesText: localizedCart.notesText
     }
   });
 });
 
-export const removeFromCart = asyncHandler(async (req, res) => {
-  const userId = checkAuth(req);
+export const removeFromCart = asyncHandler(async (req, res, next) => {
   const { productId } = req.params;
 
-  const cart = await Cart.findOne({ user: userId });
+  const cart = await Cart.findOne({ user: req.user._id });
   if (!cart) {
-    throw new AppError("Cart not found", 404);
+    return next(new AppError("Cart not found", 404));
   }
 
-  cart.items = cart.items.filter(
-    (item) => item.product.toString() !== req.params.productId
-  );
-  await cart.save();
+  await cart.removeItem(productId);
+  
+  // Populate product details
+  await cart.populate({
+    path: "items.product",
+    select: "name price images stock"
+  });
+
+  const localizedCart = getLocalizedResponse(req, cart);
 
   res.status(200).json({
     status: "success",
     data: {
-      items: cart.items,
-      totalPrice: cart.totalPrice,
-      discount: cart.discount,
-      totalPriceAfterDiscount
+      items: localizedCart.items,
+      totalPrice: localizedCart.totalPrice,
+      discount: localizedCart.discount,
+      totalPriceAfterDiscount: localizedCart.totalPriceAfterDiscount,
+      discountMessage: localizedCart.discountMessage
     }
   });
 });
 
-export const updateCartItemQuantity = asyncHandler(async (req, res) => {
-  const userId = checkAuth(req);
+export const updateCartItemQuantity = asyncHandler(async (req, res, next) => {
   const { productId } = req.params;
   const { quantity } = req.body;
 
   if (!quantity || quantity < 1) {
-    throw new AppError("Valid quantity is required", 400);
+    return next(new AppError("Valid quantity is required", 400));
   }
 
   const product = await Product.findById(productId);
   if (!product) {
-    throw new AppError("Product not found", 404);
+    return next(new AppError("Product not found", 404));
   }
 
   if (product.stock < quantity) {
-    throw new AppError("Not enough stock available", 400);
+    return next(new AppError("Not enough stock available", 400));
   }
 
-  const cart = await Cart.findOne({ user: userId });
+  const cart = await Cart.findOne({ user: req.user._id });
   if (!cart) {
-    throw new AppError("Cart not found", 404);
+    return next(new AppError("Cart not found", 404));
   }
 
-  const item = cart.items.find(
-    (item) => item.product.toString() === req.params.productId
-  );
-  if (!item) {
-    return next(new AppError("Item not found in cart", 404));
-  }
+  await cart.updateItemQuantity(productId, quantity);
+  
+  // Populate product details
+  await cart.populate({
+    path: "items.product",
+    select: "name price images stock"
+  });
 
-  const totalPriceAfterDiscount = cart.totalPrice - (cart.totalPrice * cart.discount / 100);
+  const localizedCart = getLocalizedResponse(req, cart);
 
   res.json({
     status: "success",
     data: {
-      items: cart.items,
-      totalPrice: cart.totalPrice,
-      discount: cart.discount,
-      totalPriceAfterDiscount
+      items: localizedCart.items,
+      totalPrice: localizedCart.totalPrice,
+      discount: localizedCart.discount,
+      totalPriceAfterDiscount: localizedCart.totalPriceAfterDiscount,
+      discountMessage: localizedCart.discountMessage
     }
   });
 });
 
-export const clearCart = asyncHandler(async (req, res) => {
-  const userId = checkAuth(req);
-  
-  const cart = await Cart.findOne({ user: userId });
+// New endpoint to update item notes
+export const updateCartItemNotes = asyncHandler(async (req, res, next) => {
+  const { productId } = req.params;
+  const { notes } = req.body;
+
+  const cart = await Cart.findOne({ user: req.user._id });
   if (!cart) {
-    throw new AppError("Cart not found", 404);
+    return next(new AppError("Cart not found", 404));
+  }
+
+  await cart.updateItemNotes(productId, notes);
+  
+  // Populate product details
+  await cart.populate({
+    path: "items.product",
+    select: "name price images stock"
+  });
+
+  const localizedCart = getLocalizedResponse(req, cart);
+
+  res.json({
+    status: "success",
+    data: {
+      items: localizedCart.items,
+      totalPrice: localizedCart.totalPrice,
+      discount: localizedCart.discount,
+      totalPriceAfterDiscount: localizedCart.totalPriceAfterDiscount
+    }
+  });
+});
+
+// New endpoint to apply discount with description
+export const applyDiscount = asyncHandler(async (req, res, next) => {
+  const { discount, description } = req.body;
+
+  if (discount < 0 || discount > 100) {
+    return next(new AppError("Discount must be between 0 and 100", 400));
+  }
+
+  const cart = await Cart.findOne({ user: req.user._id });
+  if (!cart) {
+    return next(new AppError("Cart not found", 404));
+  }
+
+  await cart.applyDiscount(discount, description);
+  
+  // Populate product details
+  await cart.populate({
+    path: "items.product",
+    select: "name price images stock"
+  });
+
+  const localizedCart = getLocalizedResponse(req, cart);
+
+  res.json({
+    status: "success",
+    data: {
+      items: localizedCart.items,
+      totalPrice: localizedCart.totalPrice,
+      discount: localizedCart.discount,
+      totalPriceAfterDiscount: localizedCart.totalPriceAfterDiscount,
+      discountMessage: localizedCart.discountMessage,
+      discountDescriptionText: localizedCart.discountDescriptionText
+    }
+  });
+});
+
+// New endpoint to update cart notes
+export const updateCartNotes = asyncHandler(async (req, res, next) => {
+  const { notes } = req.body;
+
+  const cart = await Cart.findOne({ user: req.user._id });
+  if (!cart) {
+    return next(new AppError("Cart not found", 404));
+  }
+
+  cart.notes = notes;
+  await cart.save();
+  
+  // Populate product details
+  await cart.populate({
+    path: "items.product",
+    select: "name price images stock"
+  });
+
+  const localizedCart = getLocalizedResponse(req, cart);
+
+  res.json({
+    status: "success",
+    data: {
+      items: localizedCart.items,
+      totalPrice: localizedCart.totalPrice,
+      discount: localizedCart.discount,
+      totalPriceAfterDiscount: localizedCart.totalPriceAfterDiscount,
+      notesText: localizedCart.notesText
+    }
+  });
+});
+
+export const clearCart = asyncHandler(async (req, res, next) => {
+  const cart = await Cart.findOne({ user: req.user._id });
+  if (!cart) {
+    return next(new AppError("Cart not found", 404));
   }
 
   await cart.clearCart();
@@ -203,7 +332,9 @@ export const clearCart = asyncHandler(async (req, res) => {
       items: [],
       totalPrice: 0,
       discount: 0,
-      totalPriceAfterDiscount: 0
+      totalPriceAfterDiscount: 0,
+      discountMessage: req.headers['accept-language']?.startsWith('ar') ? 
+        "لم يتم تطبيق أي خصم" : "No discount applied"
     }
   });
 });
@@ -219,12 +350,11 @@ export const getAllCarts = asyncHandler(async (req, res, next) => {
     .populate('items.product', 'name price images stock')
     .sort({ createdAt: -1 });
 
-  // Calculate totals for each cart
+  // Calculate totals for each cart with localization
   const cartsWithTotals = carts.map(cart => {
-    const cartObj = cart.toObject();
-    cartObj.totalPriceAfterDiscount = cart.totalPrice - (cart.totalPrice * cart.discount / 100);
-    cartObj.totalItems = cart.items.reduce((sum, item) => sum + item.quantity, 0);
-    return cartObj;
+    const localizedCart = getLocalizedResponse(req, cart);
+    localizedCart.totalItems = cart.items.reduce((sum, item) => sum + item.quantity, 0);
+    return localizedCart;
   });
 
   res.status(200).json({
