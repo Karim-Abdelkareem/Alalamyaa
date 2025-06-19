@@ -39,51 +39,94 @@ export const getProductById = asyncHandler(async (req, res, next) => {
 
 // Create product
 export const createProduct = asyncHandler(async (req, res, next) => {
-  // Handle file uploads
-  if (req.files) {
-    if (req.files.coverImage?.[0]) {
-      req.body.coverImage = req.files.coverImage[0].path;
-    }
+  const productData = req.body;
+  if (
+    !productData.name ||
+    !productData.name.en ||
+    !productData.details ||
+    !productData.details.en
+  ) {
+    return res.status(400).json({
+      message: "Product name (English) and details (English) are required.",
+    });
   }
-
-  // Parse variants and specifications if sent as JSON strings
-  ["variants", "specifications", "variantImageCounts"].forEach((field) => {
-    if (req.body[field] && typeof req.body[field] === "string") {
-      try {
-        req.body[field] = JSON.parse(req.body[field]);
-      } catch {
-        return res.status(400).json({
-          status: "fail",
-          message: `Invalid JSON in ${field}`,
-        });
-      }
+  if (!productData.category) {
+    return res.status(400).json({ message: "Product category is required." });
+  }
+  if (!productData.brand) {
+    return res.status(400).json({ message: "Product brand is required." });
+  }
+  if (!Array.isArray(productData.images) || productData.images.length === 0) {
+    return res
+      .status(400)
+      .json({ message: "At least one main product image is required." });
+  }
+  productData.images.forEach((img) => {
+    if (!img.url || !img.altText || !img.altText.en) {
+      return res
+        .status(400)
+        .json({ message: "Each image must have a URL and English altText." });
     }
   });
 
-  if (
-    req.body.variants &&
-    Array.isArray(req.body.variants) &&
-    req.files?.variantImages &&
-    Array.isArray(req.body.variantImageCounts)
-  ) {
-    let imageIndex = 0;
-    req.body.variants.forEach((variant, idx) => {
-      const imageCount = req.body.variantImageCounts[idx] || 0;
-      const imagesForVariant = req.files.variantImages
-        .slice(imageIndex, imageIndex + imageCount)
-        .map((file) => file.path);
-
-      variant.images = imagesForVariant;
-      imageIndex += imageCount;
-    });
+  if (productData.variants && productData.variants.length > 0) {
+    for (const variantType of productData.variants) {
+      if (
+        !variantType.name ||
+        !variantType.name.en ||
+        !Array.isArray(variantType.options) ||
+        variantType.options.length === 0
+      ) {
+        return res.status(400).json({
+          message:
+            "Each variant type must have a name and at least one option.",
+        });
+      }
+      for (const option of variantType.options) {
+        if (!option.value || !option.value.en) {
+          return res.status(400).json({
+            message: "Each variant option must have a value (English).",
+          });
+        }
+        if (typeof option.price !== "number" || option.price < 0) {
+          return res.status(400).json({
+            message: "Variant option price must be a non-negative number.",
+          });
+        }
+        if (typeof option.stock !== "number" || option.stock < 0) {
+          return res.status(400).json({
+            message: "Variant option stock must be a non-negative number.",
+          });
+        }
+        // Validate embedded color data
+        if (option.colorName && !option.colorHex && !option.colorSwatchImage) {
+          return res.status(400).json({
+            message:
+              "If colorName is provided, either colorHex or colorSwatchImage must be provided for variant option.",
+          });
+        }
+        // Validate variant images
+        if (option.variantImages && Array.isArray(option.variantImages)) {
+          option.variantImages.forEach((img) => {
+            if (!img.url || !img.altText || !img.altText.en) {
+              return res.status(400).json({
+                message:
+                  "Each variant image must have a URL and English altText.",
+              });
+            }
+          });
+        }
+      }
+    }
   }
-
-  const product = new Product(req.body);
-  await product.save();
-
+  const newProduct = new Product(productData);
+  const savedProduct = await newProduct.save();
+  const populatedProduct = await Product.findById(savedProduct._id)
+    .populate("category subCategory subSubcategory brand")
+    .lean();
   res.status(201).json({
-    status: "success",
-    data: product,
+    message: "Product created successfully!",
+    product: populatedProduct,
   });
 });
 

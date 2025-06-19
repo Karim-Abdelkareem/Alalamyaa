@@ -10,6 +10,7 @@ import productRouter from "./src/modules/product/productRouter.js";
 import subsubcategoryRouter from "./src/modules/sub-subcategory/sub-subcategoryRouter.js";
 import cartRouter from "./src/modules/cart/cartRouter.js";
 import orderRouter from "./src/modules/order/orderRouter.js";
+import uploadRoutes from "./src/modules/uploads/uploadRouter.js";
 
 const init = (app) => {
   app.use(express.json());
@@ -36,6 +37,7 @@ const init = (app) => {
   app.use("/api/product", productRouter);
   app.use("/api/cart", cartRouter);
   app.use("/api/orders", orderRouter);
+  app.use("/api/upload", uploadRoutes);
   app.all(/(.*)/, (req, res, next) => {
     next(new AppError(`Can't find ${req.originalUrl} on this server`, 404));
   });
