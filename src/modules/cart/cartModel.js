@@ -15,6 +15,10 @@ const cartItemSchema = new mongoose.Schema({
     type: Number,
     required: true,
   },
+  notes: {
+    en: { type: String },
+    ar: { type: String }
+  },
 });
 
 const cartSchema = new mongoose.Schema(
@@ -35,6 +39,29 @@ const cartSchema = new mongoose.Schema(
       min: [0, "Discount cannot be negative"],
       max: [100, "Discount cannot be greater than 100"],
     },
+    discountDescription: {
+      en: { type: String },
+      ar: { type: String }
+    },
+    notes: {
+      en: { type: String },
+      ar: { type: String }
+    },
+    status: {
+      type: String,
+      enum: ["active", "abandoned", "converted"],
+      default: "active",
+    },
+    statusDisplay: {
+      en: {
+        type: String,
+        enum: ["Active", "Abandoned", "Converted"],
+      },
+      ar: {
+        type: String,
+        enum: ["نشط", "مهجور", "تم التحويل"],
+      }
+    },
   },
   {
     timestamps: true,
@@ -48,23 +75,42 @@ cartSchema.pre("save", function (next) {
   this.totalPrice = this.items.reduce((total, item) => {
     return total + (item.price * item.quantity);
   }, 0);
+
+  // Auto-populate status display based on status
+  const statusMap = {
+    active: { en: "Active", ar: "نشط" },
+    abandoned: { en: "Abandoned", ar: "مهجور" },
+    converted: { en: "Converted", ar: "تم التحويل" }
+  };
+
+  if (this.status && statusMap[this.status]) {
+    this.statusDisplay = statusMap[this.status];
+  }
+
   next();
 });
 
 // Method to add item to cart
-cartSchema.methods.addItem = async function (productId, quantity, price) {
+cartSchema.methods.addItem = async function (productId, quantity, price, notes = null) {
   const existingItem = this.items.find(
     (item) => item.product.toString() === productId.toString()
   );
 
   if (existingItem) {
     existingItem.quantity += quantity;
+    if (notes) {
+      existingItem.notes = notes;
+    }
   } else {
-    this.items.push({
+    const newItem = {
       product: productId,
       quantity,
       price,
-    });
+    };
+    if (notes) {
+      newItem.notes = notes;
+    }
+    this.items.push(newItem);
   }
 
   return this.save();
@@ -91,15 +137,66 @@ cartSchema.methods.updateItemQuantity = async function (productId, quantity) {
   return this;
 };
 
+// Method to update item notes
+cartSchema.methods.updateItemNotes = async function (productId, notes) {
+  const item = this.items.find(
+    (item) => item.product.toString() === productId.toString()
+  );
+
+  if (item) {
+    item.notes = notes;
+    return this.save();
+  }
+  return this;
+};
+
+// Method to apply discount with description
+cartSchema.methods.applyDiscount = async function (discountPercent, description = null) {
+  this.discount = discountPercent;
+  if (description) {
+    this.discountDescription = description;
+  }
+  return this.save();
+};
+
 // Method to clear cart
 cartSchema.methods.clearCart = async function () {
   this.items = [];
   this.totalPrice = 0;
+  this.discount = 0;
+  this.discountDescription = undefined;
+  this.notes = undefined;
+  return this.save();
+};
+
+// Method to mark cart as abandoned
+cartSchema.methods.markAsAbandoned = async function () {
+  this.status = "abandoned";
+  return this.save();
+};
+
+// Method to mark cart as converted (when order is placed)
+cartSchema.methods.markAsConverted = async function () {
+  this.status = "converted";
   return this.save();
 };
 
 cartSchema.virtual("totalPriceAfterDiscount").get(function () {
   return this.totalPrice - (this.totalPrice * this.discount / 100);
+});
+
+// Virtual for getting localized discount description
+cartSchema.virtual("discountText").get(function () {
+  if (this.discount > 0) {
+    return {
+      en: `${this.discount}% discount applied${this.discountDescription?.en ? ': ' + this.discountDescription.en : ''}`,
+      ar: `تم تطبيق خصم ${this.discount}%${this.discountDescription?.ar ? ': ' + this.discountDescription.ar : ''}`
+    };
+  }
+  return {
+    en: "No discount applied",
+    ar: "لم يتم تطبيق أي خصم"
+  };
 });
 
 const Cart = mongoose.model("Cart", cartSchema);
