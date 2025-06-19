@@ -11,15 +11,9 @@ router.get("/:id", productController.getProductById);
 router.get("/category/:categoryId", productController.getProductsByCategory);
 
 // Protected routes (admin only)
-router.route("/").post(
-  protect,
-  restrictTo("admin"),
-  upload.fields([
-    { name: "coverImage", maxCount: 1 },
-    { name: "variantImages", maxCount: 30 },
-  ]),
-  productController.createProduct
-);
+router
+  .route("/")
+  .post(protect, restrictTo("admin"), productController.createProduct);
 
 router
   .route("/:id")

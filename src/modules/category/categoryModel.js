@@ -1,10 +1,17 @@
 import mongoose from "mongoose";
 import slugify from "slugify";
 
+const localizedStringSchema = new mongoose.Schema(
+  {
+    en: { type: String, trim: true, required: true },
+    ar: { type: String, trim: true, required: true },
+  },
+  { _id: false, strict: false }
+);
 const categorySchema = new mongoose.Schema(
   {
     name: {
-      type: String,
+      type: localizedStringSchema,
       required: [true, "Category name is required"],
       trim: true,
       unique: true,
@@ -17,7 +24,7 @@ const categorySchema = new mongoose.Schema(
       lowercase: true,
     },
     description: {
-      type: String,
+      type: localizedStringSchema,
       required: [true, "Category description is required"],
       trim: true,
       maxlength: [500, "Description cannot exceed 500 characters"],
