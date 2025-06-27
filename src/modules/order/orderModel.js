@@ -1,5 +1,41 @@
 import mongoose from "mongoose";
 
+// Localized string schema for supporting multiple languages
+const localizedStringSchema = new mongoose.Schema(
+  {
+    en: {
+      type: String,
+      trim: true,
+      required: function () {
+        return !this.ar;
+      },
+    },
+    ar: {
+      type: String,
+      trim: true,
+      required: function () {
+        return !this.en;
+      },
+    },
+  },
+  { _id: false, strict: false }
+);
+
+// Optional localized string schema (both languages are optional)
+const optionalLocalizedStringSchema = new mongoose.Schema(
+  {
+    en: {
+      type: String,
+      trim: true,
+    },
+    ar: {
+      type: String,
+      trim: true,
+    },
+  },
+  { _id: false, strict: false }
+);
+
 const orderSchema = new mongoose.Schema(
   {
     user: {
@@ -32,17 +68,20 @@ const orderSchema = new mongoose.Schema(
     },
     shippingAddress: {
       address: {
-        en: { type: String, required: true },
-        ar: { type: String, required: true }
+        type: localizedStringSchema,
+        required: true,
       },
       city: {
-        en: { type: String, required: true },
-        ar: { type: String, required: true }
+        type: localizedStringSchema,
+        required: true,
       },
-      postalCode: { type: String, required: true },
+      postalCode: { 
+        type: String, 
+        required: true 
+      },
       country: {
-        en: { type: String, required: true },
-        ar: { type: String, required: true }
+        type: localizedStringSchema,
+        required: true,
       },
     },
     status: {
@@ -51,14 +90,7 @@ const orderSchema = new mongoose.Schema(
       default: "pending",
     },
     statusDisplay: {
-      en: {
-        type: String,
-        enum: ["Pending", "Processing", "Shipped", "Delivered", "Cancelled"],
-      },
-      ar: {
-        type: String,
-        enum: ["قيد الانتظار", "قيد المعالجة", "تم الشحن", "تم التسليم", "ملغي"],
-      }
+      type: localizedStringSchema,
     },
     paymentMethod: {
       type: String,
@@ -67,14 +99,7 @@ const orderSchema = new mongoose.Schema(
       default: "cash",
     },
     paymentMethodDisplay: {
-      en: {
-        type: String,
-        enum: ["Cash", "Credit Card", "Bank Transfer"],
-      },
-      ar: {
-        type: String,
-        enum: ["نقدي", "بطاقة ائتمان", "تحويل بنكي"],
-      }
+      type: localizedStringSchema,
     },
     paymentStatus: {
       type: String,
@@ -82,18 +107,10 @@ const orderSchema = new mongoose.Schema(
       default: "pending",
     },
     paymentStatusDisplay: {
-      en: {
-        type: String,
-        enum: ["Pending", "Paid", "Failed"],
-      },
-      ar: {
-        type: String,
-        enum: ["قيد الانتظار", "مدفوع", "فشل"],
-      }
+      type: localizedStringSchema,
     },
     notes: {
-      en: { type: String },
-      ar: { type: String }
+      type: optionalLocalizedStringSchema,
     },
     isActive: {
       type: Boolean,

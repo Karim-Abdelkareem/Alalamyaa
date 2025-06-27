@@ -6,12 +6,26 @@ import { AppError } from "../../utils/appError.js";
 export const createBrand = asyncHandler(async (req, res) => {
   const { name, description, websiteUrl } = req.body;
   const logoUrl = req.file?.path;
-  if (!name || !description || !logoUrl || !websiteUrl) {
-    throw new AppError("All fields are required", 400);
+
+  // Validate that at least one language is provided for name
+  if (!name || (!name.en && !name.ar)) {
+    throw new AppError("Brand name is required in at least one language (en or ar)", 400);
   }
+
+  // Validate that required fields are provided
+  if (!logoUrl || !websiteUrl) {
+    throw new AppError("Logo and website URL are required", 400);
+  }
+
+  // Prepare description with default empty values if not provided
+  const brandDescription = description || { en: "", ar: "" };
+  if (typeof brandDescription === 'string') {
+    throw new AppError("Description should be an object with 'en' and/or 'ar' properties", 400);
+  }
+
   const brand = new Brand({
     name,
-    description,
+    description: brandDescription,
     logoUrl,
     websiteUrl,
   });
@@ -61,19 +75,46 @@ export const updateBrand = asyncHandler(async (req, res) => {
 
   const logoUrl = req.file?.path;
 
-  if (!name || !description || !websiteUrl || !status) {
-    throw new AppError("All fields are required", 400);
+  // Find the existing brand first
+  const existingBrand = await Brand.findById(id);
+  if (!existingBrand) {
+    throw new AppError("Brand not found", 404);
+  }
+
+  // Prepare update object
+  const updateData = {};
+
+  // Handle name update
+  if (name) {
+    if (!name.en && !name.ar) {
+      throw new AppError("Brand name is required in at least one language (en or ar)", 400);
+    }
+    updateData.name = name;
+  }
+
+  // Handle description update
+  if (description) {
+    if (typeof description === 'string') {
+      throw new AppError("Description should be an object with 'en' and/or 'ar' properties", 400);
+    }
+    updateData.description = description;
+  }
+
+  // Handle other fields
+  if (logoUrl) updateData.logoUrl = logoUrl;
+  if (websiteUrl) updateData.websiteUrl = websiteUrl;
+  if (status) {
+    if (!["active", "inactive"].includes(status)) {
+      throw new AppError("Status must be either 'active' or 'inactive'", 400);
+    }
+    updateData.status = status;
   }
 
   const brand = await Brand.findByIdAndUpdate(
     id,
-    { name, description, logoUrl, websiteUrl, status },
+    updateData,
     { new: true, runValidators: true }
   );
-
-  if (!brand) {
-    throw new AppError("Brand not found", 404);
-  }
 
   res.status(200).json({
     status: "success",

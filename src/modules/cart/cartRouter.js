@@ -4,6 +4,9 @@ import {
   getCart,
   removeFromCart,
   updateCartItemQuantity,
+  updateCartItemNotes,
+  applyDiscount,
+  updateCartNotes,
   clearCart,
   getAllCarts,
   deleteCartById,
@@ -27,8 +30,17 @@ router.route("/")
   .post(addToCart)
   .delete(clearCart);
 
+router.route("/notes")
+  .patch(updateCartNotes);
+
+router.route("/discount")
+  .patch(applyDiscount);
+
 router.route("/:productId")
   .delete(removeFromCart)
   .patch(updateCartItemQuantity);
+
+router.route("/:productId/notes")
+  .patch(updateCartItemNotes);
 
 export default router;

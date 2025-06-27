@@ -1,5 +1,41 @@
 import mongoose from "mongoose";
 
+// Localized string schema for supporting multiple languages
+const localizedStringSchema = new mongoose.Schema(
+  {
+    en: {
+      type: String,
+      trim: true,
+      required: function () {
+        return !this.ar;
+      },
+    },
+    ar: {
+      type: String,
+      trim: true,
+      required: function () {
+        return !this.en;
+      },
+    },
+  },
+  { _id: false, strict: false }
+);
+
+// Optional localized string schema (both languages are optional)
+const optionalLocalizedStringSchema = new mongoose.Schema(
+  {
+    en: {
+      type: String,
+      trim: true,
+    },
+    ar: {
+      type: String,
+      trim: true,
+    },
+  },
+  { _id: false, strict: false }
+);
+
 const cartItemSchema = new mongoose.Schema({
   product: {
     type: mongoose.Schema.Types.ObjectId,
@@ -16,8 +52,7 @@ const cartItemSchema = new mongoose.Schema({
     required: true,
   },
   notes: {
-    en: { type: String },
-    ar: { type: String }
+    type: optionalLocalizedStringSchema,
   },
 });
 
@@ -40,12 +75,10 @@ const cartSchema = new mongoose.Schema(
       max: [100, "Discount cannot be greater than 100"],
     },
     discountDescription: {
-      en: { type: String },
-      ar: { type: String }
+      type: optionalLocalizedStringSchema,
     },
     notes: {
-      en: { type: String },
-      ar: { type: String }
+      type: optionalLocalizedStringSchema,
     },
     status: {
       type: String,
@@ -53,14 +86,7 @@ const cartSchema = new mongoose.Schema(
       default: "active",
     },
     statusDisplay: {
-      en: {
-        type: String,
-        enum: ["Active", "Abandoned", "Converted"],
-      },
-      ar: {
-        type: String,
-        enum: ["نشط", "مهجور", "تم التحويل"],
-      }
+      type: localizedStringSchema,
     },
   },
   {

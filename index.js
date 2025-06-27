@@ -4,7 +4,10 @@ import dotenv from "dotenv";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 
-// Import custom modules and middleware
+// Load environment variables from .env file FIRST
+dotenv.config();
+
+// Import custom modules and middleware (after dotenv config)
 import connectDB from "./src/config/db.js";
 import init from "./index.routes.js";
 
@@ -23,8 +26,6 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
-// Load environment variables from .env file
-dotenv.config();
 
 // Initialize routes
 init(app);
