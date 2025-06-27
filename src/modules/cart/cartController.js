@@ -3,6 +3,24 @@ import { AppError } from "../../utils/appError.js";
 import Cart from "./cartModel.js";
 import Product from "../product/productModel.js";
 
+// Helper function to validate localized string
+const validateLocalizedString = (field, fieldName, isRequired = true) => {
+  if (!field) {
+    if (isRequired) {
+      throw new AppError(`${fieldName} is required`, 400);
+    }
+    return;
+  }
+  
+  if (typeof field !== 'object') {
+    throw new AppError(`${fieldName} should be an object with 'en' and/or 'ar' properties`, 400);
+  }
+  
+  if (isRequired && !field.en && !field.ar) {
+    throw new AppError(`${fieldName} must be provided in at least one language (en or ar)`, 400);
+  }
+};
+
 // Helper function to get localized response based on Accept-Language header
 const getLocalizedResponse = (req, cart) => {
   const lang = req.headers['accept-language']?.startsWith('ar') ? 'ar' : 'en';
@@ -10,22 +28,32 @@ const getLocalizedResponse = (req, cart) => {
   
   // Add localized display fields
   if (cart.statusDisplay) {
-    cartObj.statusText = cart.statusDisplay[lang];
+    cartObj.statusText = cart.statusDisplay[lang] || cart.statusDisplay.en;
   }
   
   // Add localized discount text
   if (cart.discountText) {
-    cartObj.discountMessage = cart.discountText[lang];
+    cartObj.discountMessage = cart.discountText[lang] || cart.discountText.en;
   }
   
   // Add localized notes if they exist
-  if (cart.notes && cart.notes[lang]) {
-    cartObj.notesText = cart.notes[lang];
+  if (cart.notes) {
+    cartObj.notesText = cart.notes[lang] || cart.notes.en || cart.notes.ar || '';
   }
   
   // Add localized discount description if it exists
-  if (cart.discountDescription && cart.discountDescription[lang]) {
-    cartObj.discountDescriptionText = cart.discountDescription[lang];
+  if (cart.discountDescription) {
+    cartObj.discountDescriptionText = cart.discountDescription[lang] || cart.discountDescription.en || cart.discountDescription.ar || '';
+  }
+  
+  // Add localized item notes for each item
+  if (cartObj.items && cartObj.items.length > 0) {
+    cartObj.items = cartObj.items.map(item => {
+      if (item.notes) {
+        item.notesText = item.notes[lang] || item.notes.en || item.notes.ar || '';
+      }
+      return item;
+    });
   }
   
   return cartObj;
@@ -84,6 +112,15 @@ export const addToCart = asyncHandler(async (req, res, next) => {
     return next(new AppError("Items array is required", 400));
   }
 
+  // Validate cart-level notes if provided
+  if (notes) {
+    try {
+      validateLocalizedString(notes, "Cart notes", false);
+    } catch (error) {
+      return next(error);
+    }
+  }
+
   // Find or create cart
   let cart = await Cart.findOne({ user: req.user._id });
   if (!cart) {
@@ -118,6 +155,15 @@ export const addToCart = asyncHandler(async (req, res, next) => {
     // Check stock
     if (productExists.stock < quantity) {
       return next(new AppError(`Not enough stock available for product ${product}`, 400));
+    }
+
+    // Validate item notes if provided
+    if (itemNotes) {
+      try {
+        validateLocalizedString(itemNotes, "Item notes", false);
+      } catch (error) {
+        return next(error);
+      }
     }
 
     // Update or add item using the model method
@@ -225,6 +271,15 @@ export const updateCartItemNotes = asyncHandler(async (req, res, next) => {
   const { productId } = req.params;
   const { notes } = req.body;
 
+  // Validate notes if provided
+  if (notes) {
+    try {
+      validateLocalizedString(notes, "Item notes", false);
+    } catch (error) {
+      return next(error);
+    }
+  }
+
   const cart = await Cart.findOne({ user: req.user._id });
   if (!cart) {
     return next(new AppError("Cart not found", 404));
@@ -259,6 +314,15 @@ export const applyDiscount = asyncHandler(async (req, res, next) => {
     return next(new AppError("Discount must be between 0 and 100", 400));
   }
 
+  // Validate discount description if provided
+  if (description) {
+    try {
+      validateLocalizedString(description, "Discount description", false);
+    } catch (error) {
+      return next(error);
+    }
+  }
+
   const cart = await Cart.findOne({ user: req.user._id });
   if (!cart) {
     return next(new AppError("Cart not found", 404));
@@ -290,6 +354,15 @@ export const applyDiscount = asyncHandler(async (req, res, next) => {
 // New endpoint to update cart notes
 export const updateCartNotes = asyncHandler(async (req, res, next) => {
   const { notes } = req.body;
+
+  // Validate notes if provided
+  if (notes) {
+    try {
+      validateLocalizedString(notes, "Cart notes", false);
+    } catch (error) {
+      return next(error);
+    }
+  }
 
   const cart = await Cart.findOne({ user: req.user._id });
   if (!cart) {
