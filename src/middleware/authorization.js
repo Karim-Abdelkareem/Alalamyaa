@@ -54,3 +54,34 @@ export const admin = asyncHandler(async (req, res, next) => {
     );
   }
 });
+
+export const isLoggedIn = async (req, res, next) => {
+  // 1) Getting token and check if it's there
+  if (req.cookies.access_token) {
+    try {
+      // 2) Verification token
+      const decoded = await promisify(jwt.verify)(
+        req.cookies.access_token,
+        process.env.JWT_SECRET
+      );
+
+      // 3) Check if user still exists
+      const currentUser = await User.findById(decoded.id);
+      if (!currentUser) {
+        return next();
+      }
+
+      // // 4) Check if user changed password after the token was issued
+      // if (currentUser.changedPasswordAfter(decoded.iat)) {
+      //   return next();
+      // }
+      // Grant access to protected routes
+      req.user = currentUser;
+      res.locals.user = currentUser;
+      return next();
+    } catch (err) {
+      return next();
+    }
+  }
+  next();
+};

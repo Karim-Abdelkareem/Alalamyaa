@@ -342,7 +342,7 @@ export const getAllProducts = asyncHandler(async (req, res, next) => {
 
 // Get product by ID
 export const getProductById = asyncHandler(async (req, res, next) => {
-  // console.log("Product ID:");
+  // console.log("Product ID:", req.user);
   const product = await Product.findById(req.params.id)
     .populate("category", "name description image")
     .populate("subCategory", "name description")
@@ -350,7 +350,7 @@ export const getProductById = asyncHandler(async (req, res, next) => {
     .populate("brand", "name description logoUrl websiteUrl");
 
   if (!product) return next(new AppError("No product found with that ID", 404));
-  if (req.user.role !== "admin") {
+  if (!req.user || req.user.role !== "admin") {
     product.views = (product.views || 0) + 1;
     await product.save();
   }

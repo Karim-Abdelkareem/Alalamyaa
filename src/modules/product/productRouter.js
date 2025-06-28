@@ -1,13 +1,13 @@
 import express from "express";
 import * as productController from "./productController.js";
-import { protect, restrictTo } from "../../middleware/authorization.js";
+import { isLoggedIn, protect, restrictTo } from "../../middleware/authorization.js";
 import { upload } from "../../config/cloudinary.js";
 
 const router = express.Router();
 
 // Public routes
 router.get("/", productController.getAllProducts);
-router.get("/:id", protect, productController.getProductById);
+router.get("/:id", isLoggedIn, productController.getProductById);
 router.get("/category/:categoryId", productController.getProductsByCategory);
 
 // Protected routes (admin only)
