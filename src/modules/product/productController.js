@@ -373,6 +373,25 @@ export const getAllProducts = asyncHandler(async (req, res, next) => {
   // });
 
   // تفعيل الفلترة المتقدمة (بما فيها السعر والتقييم)
+  let discountFilter = null;
+  Object.keys(filteredQuery).forEach((key) => {
+    const match = key.match(/^variants\.options\.discount\[(gte|gt|lte|lt)\]$/);
+    if (match) {
+      const op = match[1];
+      if (!discountFilter) discountFilter = {};
+      discountFilter[`$${op}`] = Number(filteredQuery[key]);
+      delete filteredQuery[key];
+    }
+  });
+
+  let baseQuery = Product.find();
+
+  if (discountFilter) {
+    baseQuery = baseQuery
+      .where("variants.options")
+      .elemMatch({ discount: discountFilter });
+  }
+
   const features = new Features(Product.find(), filteredQuery)
     .filter()
     .sort()
@@ -393,6 +412,33 @@ export const getAllProducts = asyncHandler(async (req, res, next) => {
         )
       )
     );
+  }
+  if (discountFilter) {
+    products = products
+      .map((prod) => {
+        // Filter each variant's options array
+        const newVariants = prod.variants.map((variant) => {
+          const filteredOptions = variant.options.filter((option) => {
+            // Apply all discountFilter operators
+            let match = true;
+            for (const [op, val] of Object.entries(discountFilter)) {
+              if (op === "$gt" && !(option.discount > val)) match = false;
+              if (op === "$gte" && !(option.discount >= val)) match = false;
+              if (op === "$lt" && !(option.discount < val)) match = false;
+              if (op === "$lte" && !(option.discount <= val)) match = false;
+            }
+            return match;
+          });
+          return { ...variant.toObject(), options: filteredOptions };
+        });
+        // Remove variants with no options left
+        const filteredVariants = newVariants.filter(
+          (v) => v.options.length > 0
+        );
+        return { ...prod.toObject(), variants: filteredVariants };
+      })
+      // Remove products with no variants left
+      .filter((prod) => prod.variants.length > 0);
   }
 
   res.status(200).json({
