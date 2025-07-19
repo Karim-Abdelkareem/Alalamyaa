@@ -15,6 +15,6 @@ userRouter
   .patch(protect, restrictTo("admin"), userController.updateUser)
   .delete(protect, restrictTo("admin"), userController.deleteUser);
 
-userRouter.route("profile/me").get(protect, userController.getMe);
+userRouter.route("/profile/me").get(protect, userController.getMe);
 
 export default userRouter;

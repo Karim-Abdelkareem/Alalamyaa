@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import User from "../user/userModel.js";
 
 export const register = asyncHandler(async (req, res, next) => {
+  console.log("Register request body:", req.body);
   const { firstName, lastName, email, password, phoneNumber } = req.body;
   const userExists = await User.findOne({ email });
   if (userExists) {
@@ -50,9 +51,9 @@ export const login = asyncHandler(async (req, res, next) => {
   );
 
   res.cookie("access_token", token, {
-    sameSite: "None",
+    sameSite: process.env.NODE_ENV === "production" ? "None" : undefined,
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: process.env.NODE_ENV === "production" ? true : false,
   });
 
   user.lastLogin = new Date();
@@ -70,7 +71,7 @@ export const logout = asyncHandler(async (req, res, next) => {
   res.clearCookie("access_token", {
     sameSite: "None",
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: process.env.NODE_ENV === "production" ? true : false,
   });
   res.status(200).json({
     status: "success",

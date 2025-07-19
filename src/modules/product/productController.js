@@ -576,7 +576,53 @@ export const createProduct = asyncHandler(async (req, res, next) => {
 });
 
 // Update product
+import mongoose from "mongoose";
+
 export const updateProduct = asyncHandler(async (req, res, next) => {
+  console.log("Update Product - req.body:", req.body);
+  console.log("Update Product - req.params:", req.params);
+
+  // Treat empty string as null for subCategory and subSubcategory to avoid cast errors
+  if (req.body.subCategory === "") {
+    req.body.subCategory = null;
+  }
+  if (req.body.subSubcategory === "") {
+    req.body.subSubcategory = null;
+  }
+
+  // Validate category and subcategory IDs if present
+  if (req.body.category) {
+    if (!mongoose.Types.ObjectId.isValid(req.body.category)) {
+      return res.status(400).json({ status: "fail", message: "Invalid category ID" });
+    }
+    const categoryExists = await Category.findById(req.body.category);
+    if (!categoryExists) {
+      return res.status(400).json({ status: "fail", message: "Category not found" });
+    }
+  }
+  if (req.body.subCategory) {
+    if (!mongoose.Types.ObjectId.isValid(req.body.subCategory)) {
+      return res.status(400).json({ status: "fail", message: "Invalid subCategory ID" });
+    }
+    const subCategoryExists = await Category.findById(req.body.subCategory);
+    if (!subCategoryExists) {
+      return res.status(400).json({ status: "fail", message: "SubCategory not found" });
+    }
+    // Verify subCategory belongs to category if category is provided
+    if (req.body.category && subCategoryExists.category?.toString() !== req.body.category) {
+      return res.status(400).json({ status: "fail", message: "SubCategory does not belong to the specified Category" });
+    }
+  }
+  if (req.body.subSubcategory) {
+    if (!mongoose.Types.ObjectId.isValid(req.body.subSubcategory)) {
+      return res.status(400).json({ status: "fail", message: "Invalid subSubcategory ID" });
+    }
+    const subSubcategoryExists = await Category.findById(req.body.subSubcategory);
+    if (!subSubcategoryExists) {
+      return res.status(400).json({ status: "fail", message: "SubSubcategory not found" });
+    }
+  }
+
   // Handle cover image
   if (req.body.coverImage && req.files?.coverImage?.[0]) {
     req.body.coverImage = req.files.coverImage[0].path;
@@ -619,22 +665,27 @@ export const updateProduct = asyncHandler(async (req, res, next) => {
     });
   }
 
-  const updatedProduct = await Product.findByIdAndUpdate(
-    req.params.id,
-    req.body,
-    {
-      new: true,
-      runValidators: true,
+  try {
+    const updatedProduct = await Product.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
+
+    if (!updatedProduct) {
+      return next(new AppError("No product found with that ID", 404));
     }
-  );
 
-  if (!updatedProduct) {
-    return next(new AppError("No product found with that ID", 404));
+    res.status(200).json({
+      status: "success",
+    });
+  } catch (error) {
+    console.error("Error updating product:", error);
+    return next(new AppError(error.message, 500));
   }
-
-  res.status(200).json({
-    status: "success",
-  });
 });
 
 // Delete product
