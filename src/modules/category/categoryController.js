@@ -4,12 +4,12 @@ import { AppError } from "../../utils/appError.js";
 
 // Helper function to get localized response based on Accept-Language header
 const getLocalizedResponse = (req, category) => {
-  const lang = req.headers['accept-language']?.startsWith('ar') ? 'ar' : 'en';
-  
+  const lang = req.headers["accept-language"]?.startsWith("ar") ? "ar" : "en";
+
   if (Array.isArray(category)) {
-    return category.map(cat => cat.getLocalized(lang));
+    return category.map((cat) => cat.getLocalized(lang));
   }
-  
+
   return category.getLocalized(lang);
 };
 
@@ -18,37 +18,46 @@ const validateBilingualInput = (data, fieldName) => {
   if (!data) {
     throw new AppError(`${fieldName} is required`, 400);
   }
-  
+
   // Handle case where data might be a string (JSON string)
-  if (typeof data === 'string') {
+  if (typeof data === "string") {
     try {
       data = JSON.parse(data);
     } catch (e) {
-      throw new AppError(`${fieldName} must be a valid JSON object with 'en' and 'ar' properties`, 400);
+      throw new AppError(
+        `${fieldName} must be a valid JSON object with 'en' and 'ar' properties`,
+        400
+      );
     }
   }
-  
-  if (typeof data !== 'object' || Array.isArray(data) || data === null) {
-    throw new AppError(`${fieldName} must be an object with 'en' and 'ar' properties. Received: ${typeof data}`, 400);
+
+  if (typeof data !== "object" || Array.isArray(data) || data === null) {
+    throw new AppError(
+      `${fieldName} must be an object with 'en' and 'ar' properties. Received: ${typeof data}`,
+      400
+    );
   }
-  
-  if (!data.en || typeof data.en !== 'string' || data.en.trim() === '') {
-    throw new AppError(`${fieldName} must have a valid English (en) value`, 400);
+
+  if (!data.en || typeof data.en !== "string" || data.en.trim() === "") {
+    throw new AppError(
+      `${fieldName} must have a valid English (en) value`,
+      400
+    );
   }
-  
-  if (!data.ar || typeof data.ar !== 'string' || data.ar.trim() === '') {
+
+  if (!data.ar || typeof data.ar !== "string" || data.ar.trim() === "") {
     throw new AppError(`${fieldName} must have a valid Arabic (ar) value`, 400);
   }
-  
+
   return data; // Return the parsed data
 };
 
 // GET /api/categories
 export const getAllCategories = asyncHandler(async (req, res) => {
-  const { lang, includeInactive } = req.query;
-  
+  const { includeInactive } = req.query;
+
   let query = {};
-  if (!includeInactive || includeInactive !== 'true') {
+  if (!includeInactive || includeInactive !== "true") {
     query.isActive = true;
   }
 
@@ -61,25 +70,13 @@ export const getAllCategories = asyncHandler(async (req, res) => {
         select: "-subcategory -category",
       },
     })
-    .sort('order');
+    .sort("order");
 
-  // If specific language requested, return localized data
-  if (lang && (lang === 'en' || lang === 'ar')) {
-    const localizedCategories = categories.map(cat => cat.getLocalized(lang));
-    return res.status(200).json({
-      status: "success",
-      results: categories.length,
-      data: localizedCategories,
-    });
-  }
-
-  // If no specific language, return based on Accept-Language header
-  const localizedCategories = getLocalizedResponse(req, categories);
-
-  res.status(200).json({
+  // إرجاع جميع اللغات كما هي من قاعدة البيانات
+  return res.status(200).json({
     status: "success",
     results: categories.length,
-    data: localizedCategories,
+    data: categories,
   });
 });
 
@@ -91,13 +88,13 @@ export const getActiveCategories = asyncHandler(async (req, res) => {
     match: { isActive: true },
     populate: {
       path: "subSubcategories",
-      match: { isActive: true }
-    }
+      match: { isActive: true },
+    },
   });
 
   // If specific language requested, return localized data
-  if (lang && (lang === 'en' || lang === 'ar')) {
-    const localizedCategories = categories.map(cat => cat.getLocalized(lang));
+  if (lang && (lang === "en" || lang === "ar")) {
+    const localizedCategories = categories.map((cat) => cat.getLocalized(lang));
     return res.status(200).json({
       status: "success",
       results: categories.length,
@@ -122,7 +119,7 @@ export const getCategoryBySlug = asyncHandler(async (req, res, next) => {
     match: { isActive: true },
     populate: {
       path: "subSubcategories",
-      match: { isActive: true }
+      match: { isActive: true },
     },
   });
 
@@ -131,7 +128,7 @@ export const getCategoryBySlug = asyncHandler(async (req, res, next) => {
   }
 
   // If specific language requested, return localized data
-  if (lang && (lang === 'en' || lang === 'ar')) {
+  if (lang && (lang === "en" || lang === "ar")) {
     const localizedCategory = category.getLocalized(lang);
     return res.status(200).json({
       status: "success",
@@ -162,7 +159,7 @@ export const getCategoryById = asyncHandler(async (req, res, next) => {
   }
 
   // If specific language requested, return localized data
-  if (lang && (lang === 'en' || lang === 'ar')) {
+  if (lang && (lang === "en" || lang === "ar")) {
     const localizedCategory = category.getLocalized(lang);
     return res.status(200).json({
       status: "success",
@@ -171,7 +168,7 @@ export const getCategoryById = asyncHandler(async (req, res, next) => {
   }
 
   // For admin purposes, return full bilingual data
-  if (req.user && req.user.role === 'admin') {
+  if (req.user && req.user.role === "admin") {
     return res.status(200).json({
       status: "success",
       data: category,
@@ -188,12 +185,13 @@ export const getCategoryById = asyncHandler(async (req, res, next) => {
 
 // POST /api/categories
 export const createCategory = asyncHandler(async (req, res, next) => {
-  let { name, description, metaTitle, metaDescription, ...otherFields } = req.body;
+  let { name, description, metaTitle, metaDescription, ...otherFields } =
+    req.body;
 
   // Validate and parse required bilingual fields
   try {
-    name = validateBilingualInput(name, 'Name');
-    description = validateBilingualInput(description, 'Description');
+    name = validateBilingualInput(name, "Name");
+    description = validateBilingualInput(description, "Description");
   } catch (error) {
     return next(error);
   }
@@ -201,7 +199,7 @@ export const createCategory = asyncHandler(async (req, res, next) => {
   // Validate and parse optional bilingual fields if provided
   if (metaTitle) {
     try {
-      metaTitle = validateBilingualInput(metaTitle, 'Meta Title');
+      metaTitle = validateBilingualInput(metaTitle, "Meta Title");
     } catch (error) {
       return next(error);
     }
@@ -209,7 +207,10 @@ export const createCategory = asyncHandler(async (req, res, next) => {
 
   if (metaDescription) {
     try {
-      metaDescription = validateBilingualInput(metaDescription, 'Meta Description');
+      metaDescription = validateBilingualInput(
+        metaDescription,
+        "Meta Description"
+      );
     } catch (error) {
       return next(error);
     }
@@ -218,7 +219,7 @@ export const createCategory = asyncHandler(async (req, res, next) => {
   const categoryData = {
     name,
     description,
-    ...otherFields
+    ...otherFields,
   };
 
   if (metaTitle) categoryData.metaTitle = metaTitle;
@@ -237,12 +238,13 @@ export const createCategory = asyncHandler(async (req, res, next) => {
 
 // PATCH /api/categories/:id
 export const updateCategory = asyncHandler(async (req, res, next) => {
-  let { name, description, metaTitle, metaDescription, ...otherFields } = req.body;
+  let { name, description, metaTitle, metaDescription, ...otherFields } =
+    req.body;
 
   // Validate and parse bilingual fields if they are being updated
   if (name) {
     try {
-      name = validateBilingualInput(name, 'Name');
+      name = validateBilingualInput(name, "Name");
     } catch (error) {
       return next(error);
     }
@@ -250,7 +252,7 @@ export const updateCategory = asyncHandler(async (req, res, next) => {
 
   if (description) {
     try {
-      description = validateBilingualInput(description, 'Description');
+      description = validateBilingualInput(description, "Description");
     } catch (error) {
       return next(error);
     }
@@ -258,7 +260,7 @@ export const updateCategory = asyncHandler(async (req, res, next) => {
 
   if (metaTitle) {
     try {
-      metaTitle = validateBilingualInput(metaTitle, 'Meta Title');
+      metaTitle = validateBilingualInput(metaTitle, "Meta Title");
     } catch (error) {
       return next(error);
     }
@@ -266,7 +268,10 @@ export const updateCategory = asyncHandler(async (req, res, next) => {
 
   if (metaDescription) {
     try {
-      metaDescription = validateBilingualInput(metaDescription, 'Meta Description');
+      metaDescription = validateBilingualInput(
+        metaDescription,
+        "Meta Description"
+      );
     } catch (error) {
       return next(error);
     }
@@ -304,10 +309,12 @@ export const deleteCategory = asyncHandler(async (req, res, next) => {
 
   // Check if category has subcategories
   if (category.subcategories && category.subcategories.length > 0) {
-    return next(new AppError(
-      "Cannot delete category with subcategories. Please delete subcategories first.", 
-      400
-    ));
+    return next(
+      new AppError(
+        "Cannot delete category with subcategories. Please delete subcategories first.",
+        400
+      )
+    );
   }
 
   await category.deleteOne();
@@ -321,7 +328,7 @@ export const deleteCategory = asyncHandler(async (req, res, next) => {
 // PATCH /api/categories/order
 export const updateCategoryOrder = asyncHandler(async (req, res, next) => {
   const { orders } = req.body; // [{ id, order }]
-  
+
   if (!orders || !Array.isArray(orders)) {
     return next(new AppError("Orders array is required", 400));
   }
@@ -329,7 +336,7 @@ export const updateCategoryOrder = asyncHandler(async (req, res, next) => {
   const updates = orders.map((item) =>
     Category.findByIdAndUpdate(item.id, { order: item.order }, { new: true })
   );
-  
+
   await Promise.all(updates);
 
   res.status(200).json({
@@ -359,35 +366,41 @@ export const toggleCategoryStatus = asyncHandler(async (req, res, next) => {
 // GET /api/categories/search
 export const searchCategories = asyncHandler(async (req, res, next) => {
   const { q, lang } = req.query;
-  
+
   if (!q) {
     return next(new AppError("Search query is required", 400));
   }
 
-  const searchLang = lang && (lang === 'en' || lang === 'ar') ? lang : 
-    (req.headers['accept-language']?.startsWith('ar') ? 'ar' : 'en');
+  const searchLang =
+    lang && (lang === "en" || lang === "ar")
+      ? lang
+      : req.headers["accept-language"]?.startsWith("ar")
+      ? "ar"
+      : "en";
 
   const searchQuery = {
     $and: [
       { isActive: true },
       {
         $or: [
-          { [`name.${searchLang}`]: { $regex: q, $options: 'i' } },
-          { [`description.${searchLang}`]: { $regex: q, $options: 'i' } }
-        ]
-      }
-    ]
+          { [`name.${searchLang}`]: { $regex: q, $options: "i" } },
+          { [`description.${searchLang}`]: { $regex: q, $options: "i" } },
+        ],
+      },
+    ],
   };
 
   const categories = await Category.find(searchQuery)
     .populate({
       path: "subcategories",
-      match: { isActive: true }
+      match: { isActive: true },
     })
-    .sort('order')
+    .sort("order")
     .limit(20);
 
-  const localizedCategories = categories.map(cat => cat.getLocalized(searchLang));
+  const localizedCategories = categories.map((cat) =>
+    cat.getLocalized(searchLang)
+  );
 
   res.status(200).json({
     status: "success",

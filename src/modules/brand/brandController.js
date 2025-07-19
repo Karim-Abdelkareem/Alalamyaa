@@ -32,6 +32,7 @@ export const getBrands = asyncHandler(async (req, res) => {
 
   res.status(200).json({
     status: "success",
+    results: brands.length,
     data: {
       brands,
     },

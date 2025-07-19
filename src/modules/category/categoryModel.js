@@ -1,6 +1,13 @@
 import mongoose from "mongoose";
 import slugify from "slugify";
 
+const localizedStringSchema = new mongoose.Schema(
+  {
+    en: { type: String, trim: true, required: true },
+    ar: { type: String, trim: true, required: true },
+  },
+  { _id: false, strict: false }
+);
 const categorySchema = new mongoose.Schema(
   {
     name: {
@@ -11,7 +18,7 @@ const categorySchema = new mongoose.Schema(
       ar: {
         type: String,
         required: [true, "Category name in Arabic is required"],
-      }
+      },
     },
     slug: {
       en: {
@@ -23,7 +30,7 @@ const categorySchema = new mongoose.Schema(
         type: String,
         unique: true,
         lowercase: true,
-      }
+      },
     },
     description: {
       en: {
@@ -33,7 +40,7 @@ const categorySchema = new mongoose.Schema(
       ar: {
         type: String,
         required: [true, "Category description in Arabic is required"],
-      }
+      },
     },
     subcategories: [
       {
@@ -59,12 +66,24 @@ const categorySchema = new mongoose.Schema(
       trim: true,
     },
     metaTitle: {
-      en: { type: String, maxlength: [60, "Meta title cannot exceed 60 characters"] },
-      ar: { type: String, maxlength: [60, "Meta title cannot exceed 60 characters"] }
+      en: {
+        type: String,
+        maxlength: [60, "Meta title cannot exceed 60 characters"],
+      },
+      ar: {
+        type: String,
+        maxlength: [60, "Meta title cannot exceed 60 characters"],
+      },
     },
     metaDescription: {
-      en: { type: String, maxlength: [160, "Meta description cannot exceed 160 characters"] },
-      ar: { type: String, maxlength: [160, "Meta description cannot exceed 160 characters"] }
+      en: {
+        type: String,
+        maxlength: [160, "Meta description cannot exceed 160 characters"],
+      },
+      ar: {
+        type: String,
+        maxlength: [160, "Meta description cannot exceed 160 characters"],
+      },
     },
   },
   {
@@ -87,7 +106,7 @@ categorySchema.pre("save", function (next) {
       this.slug.ar = slugify(this.name.ar, {
         lower: true,
         strict: true,
-        locale: 'ar'
+        locale: "ar",
       });
     }
   }
@@ -108,11 +127,8 @@ categorySchema.statics.findActive = function () {
 // Static method to find by slug in any language
 categorySchema.statics.findBySlug = function (slug) {
   return this.findOne({
-    $or: [
-      { "slug.en": slug },
-      { "slug.ar": slug }
-    ],
-    isActive: true
+    $or: [{ "slug.en": slug }, { "slug.ar": slug }],
+    isActive: true,
   });
 };
 
@@ -123,8 +139,8 @@ categorySchema.methods.getWithSubcategories = async function () {
 };
 
 // Method to get localized data
-categorySchema.methods.getLocalized = function (language = 'en') {
-  const lang = language === 'ar' ? 'ar' : 'en';
+categorySchema.methods.getLocalized = function (language = "en") {
+  const lang = language === "ar" ? "ar" : "en";
   return {
     _id: this._id,
     name: this.name[lang],
@@ -138,15 +154,15 @@ categorySchema.methods.getLocalized = function (language = 'en') {
     image: this.image,
     icon: this.icon,
     createdAt: this.createdAt,
-    updatedAt: this.updatedAt
+    updatedAt: this.updatedAt,
   };
 };
 
 // Virtual for getting both language versions
-categorySchema.virtual('localizedData').get(function() {
+categorySchema.virtual("localizedData").get(function () {
   return {
-    en: this.getLocalized('en'),
-    ar: this.getLocalized('ar')
+    en: this.getLocalized("en"),
+    ar: this.getLocalized("ar"),
   };
 });
 

@@ -5,7 +5,7 @@ import { protect, restrictTo } from "../../middleware/authorization.js";
 const router = express.Router();
 
 // Public or Protected Access
-router.get("/", protect, categoryController.getAllCategories);
+router.get("/", categoryController.getAllCategories);
 router.get("/active", protect, categoryController.getActiveCategories);
 router.get("/slug/:slug", protect, categoryController.getCategoryBySlug);
 router.get("/:id", protect, categoryController.getCategoryById);

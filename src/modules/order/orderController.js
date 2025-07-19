@@ -167,19 +167,24 @@ export const updateOrderToDelivered = asyncHandler(async (req, res, next) => {
   res.status(200).json({ status: "success", data: { order: orderObject } });
 });
 
-export const getAllOrders = asyncHandler(async (req, res) => {
-  const orders = await Order.find()
-    .populate("user", "firstName lastName email phoneNumber profilePicture")
-    .populate("items.product", "name price");
-  
-  const localizedOrders = orders.map(order => getLocalizedResponse(req, order));
-  
-  res.status(200).json({
-    status: "success",
-    data: {
-      orders: localizedOrders,
-    },
-  });
+export const getAllOrders = asyncHandler(async (req, res, next) => {
+  try {
+    const orders = await Order.find()
+      .populate("user", "firstName lastName email phoneNumber profilePicture")
+      .populate("items.product", "name price");
+
+    const localizedOrders = orders.map(order => getLocalizedResponse(req, order));
+
+    res.status(200).json({
+      status: "success",
+      data: {
+        orders: localizedOrders,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching all orders:", error);
+    next(new AppError("Failed to fetch orders", 500));
+  }
 });
 
 export const updateOrderStatus = asyncHandler(async (req, res) => {

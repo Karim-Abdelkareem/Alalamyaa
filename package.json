@@ -1,16 +1,24 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "main": "index.js",
+  "description": "This repository contains a minimal and well-structured Node.js + Express backend setup. It includes the essential configuration and starting point for building scalable APIs or full-stack applications.",
+  "keywords": [],
+  "homepage": "https://github.com/Karim-Abdelkareem/Alalamyaa#readme",
+  "bugs": {
+    "url": "https://github.com/Karim-Abdelkareem/Alalamyaa/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Karim-Abdelkareem/Alalamyaa.git"
+  },
+  "license": "ISC",
+  "author": "",
   "type": "module",
+  "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon index.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
   "dependencies": {
     "bcrypt": "^5.1.1",
     "cloudinary": "^1.30.0",

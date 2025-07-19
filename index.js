@@ -12,10 +12,24 @@ import init from "./index.routes.js";
 const app = express();
 
 // Configure CORS middleware to allow all origins
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "http://127.0.0.1:5173",
+  "http://127.0.0.1:5174"
+];
+
 app.use(
   cors({
-    origin: "http://localhost:5173", // Allow all origins
-    credentials: true, // Allow credentials (cookies, authorization headers, etc.)
+    origin: function (origin, callback) {
+      if (!origin) return callback(null, true); // allow requests with no origin
+      if (allowedOrigins.indexOf(origin) === -1) {
+        const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+        return callback(new Error(msg), false);
+      }
+      return callback(null, origin);
+    },
+    credentials: true,
   })
 );
 

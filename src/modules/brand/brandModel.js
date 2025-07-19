@@ -1,10 +1,16 @@
 import mongoose from "mongoose";
 import slugify from "slugify";
-
+const localizedStringSchema = new mongoose.Schema(
+  {
+    en: { type: String, trim: true, required: true },
+    ar: { type: String, trim: true, required: true },
+  },
+  { _id: false, strict: false }
+);
 const brandSchema = new mongoose.Schema(
   {
     name: {
-      type: String,
+      type: localizedStringSchema,
       required: true,
       unique: true,
     },
